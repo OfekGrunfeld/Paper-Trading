@@ -1,2 +1,2 @@
 # GitHub project
-my project
+This is a project about papertrading. 
