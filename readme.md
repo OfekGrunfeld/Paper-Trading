@@ -1,1 +1,2 @@
-# 
+# GitHub project
+my project
