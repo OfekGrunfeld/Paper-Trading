@@ -3,10 +3,14 @@
         "uvicorn",
         "fastapi",
         "pydantic"
+        
     ],
     "modules": [
         "enum",
-        "hashlib"
+        "hashlib",
+        "typing",
+        "smtplib",
+        "email"
     ]
 
 }
