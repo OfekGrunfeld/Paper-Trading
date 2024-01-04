@@ -1,0 +1,12 @@
+{
+    "libraries": [
+        "uvicorn",
+        "fastapi",
+        "pydantic"
+    ],
+    "modules": [
+        "enum",
+        "hashlib"
+    ]
+
+}
