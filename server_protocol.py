@@ -1,5 +1,9 @@
 from enum import Enum
 from hashlib import sha256
+import logging as log
+from sys import stdout
+
+log.basicConfig(format='%(asctime)s -> %(message)s', datefmt='%d/%m/%Y %H:%M:%S', stream=stdout, level=log.INFO)
 
 class Constants(Enum):
     HOST_IP = "127.0.0.1"
