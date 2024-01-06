@@ -7,6 +7,7 @@ from typing import Generator
 # for typehints
 from sqlalchemy.orm import Session
 from uuid import UUID
+import send_email
 
 # CONSTANTS
 HOST_IP = sp.Constants.HOST_IP.value
@@ -73,6 +74,8 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
         db.add(user_model)
         db.commit()
 
+        # send mail to user
+        send_email.send_email(email, send_email.Message_Types["sign_up"].value)
         return "signed up successfully"
     except Exception as error:
         return f"Failed to sign up {error}"

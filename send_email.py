@@ -3,11 +3,16 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
 from enum import Enum
-from server_protocol import is_valid_email_external, Constants
+from server_protocol import is_valid_email_external, Constants, log
 
 # class to organise different message types
 class Message_Types(Enum):
   reset_password = "reset_password"
+  sign_up = "sign_up"
+# titles for different message types
+class Message_Types_Titles(Enum):
+  reset_password = "reset_password"
+  sign_up = "Welcome to O.G Papertrading"
 
 def create_message(message_title: str, message_type: str) -> MIMEMultipart:
   """
@@ -36,17 +41,16 @@ def create_message(message_title: str, message_type: str) -> MIMEMultipart:
   text = None
   try:
     with open(f"{absolute_path}.txt", "r") as file:
-        text = str(file.read())
+      text = str(file.read())
   except Exception as error:
-    print(f"Error reading reset password text file {error}")
+    log.error(f"Error reading reset password text file {error}")
   # in html
   html = None
   try:
     with open(f"{absolute_path}.html", "r") as file:
       html = str(file.read())
   except Exception as error:
-    print(f"Error reading reset password html file {error}")
-  print(f"text: {text}\nhtml: {html}")
+    log.error(f"Error reading reset password html file {error}")
   
   # Turn the plain text/html to MIMEText objects
   part1 = MIMEText(text, "plain")
@@ -58,51 +62,49 @@ def create_message(message_title: str, message_type: str) -> MIMEMultipart:
     message.attach(part1)
     message.attach(part2)
   except Exception as error:
-    print(f"error: {error}")
+    log.error(f"error: {error}")
 
   return message
   
-def send_mail(client_email: str, message: MIMEMultipart) -> None:
+def send_email_internal(email: str, message: MIMEMultipart) -> bool:
   """
   Sends an email to the client using the server's email
 
   Parameters:
-    client_email (str): The client's email adress
+    email (str): The client's email adress
     message (MIMEMultipart): The message to send to the client, (text + html)
   """
-  # set message recipent
-  message["To"] = client_email
-
-  print("Connecting to smtp server")
-  # connect to smtp server
   try:
-    smtp_object = smtplib.SMTP(Constants.SMTP_SERVER_URL.value, 587)
+    # set message recipent
+    message["To"] = email
+
+    log.info("Connecting to smtp server")
+    # connect to smtp server
+    try:
+      smtp_object = smtplib.SMTP(Constants.SMTP_SERVER_URL.value, 587)
+    except Exception as error:
+      log.error(f"Error in connecting to outlook smtp server | {error}")
+      smtp_object = smtplib.SMTP_SSL(Constants.SMTP_SERVER_URL.value, 465)
+    
+    log.info("Initialising TTLS")
+    # user TTLS (for security reasons)
+    smtp_object.ehlo()
+    smtp_object.starttls()
+
+    log.info(f"Logging in to server's email: {Constants.SERVER_EMAIL.value}")
+    # log to server email
+    smtp_object.login(Constants.SERVER_EMAIL.value, Constants.SERVER_PASSWORD.value) 
+    # send mail
+    log.info(f"Sending email to {email}")
+    smtp_object.sendmail(Constants.SERVER_EMAIL.value, email, message.as_string())
+    log.info("Email sent succefully")
+
+    # close smtp session
+    smtp_object.quit()
   except Exception as error:
-    print(f"Error in connecting to outlook smtp server | {error}")
-    smtp_object = smtplib.SMTP_SSL(Constants.SMTP_SERVER_URL.value, 465)
-  
-  print("Initialising TTLS")
-  # user TTLS (for security reasons)
-  smtp_object.ehlo()
-  smtp_object.starttls()
+    log.error(f"Unknown error in sending mail to {email}")
+    return False
 
-  print(f"Logging in to server's email: {Constants.SERVER_EMAIL.value}")
-  # log to server email
-  smtp_object.login(Constants.SERVER_EMAIL.value, Constants.SERVER_PASSWORD.value) 
-  # send mail
-  print(f"Sending email to {client_email}")
-  smtp_object.sendmail(Constants.SERVER_EMAIL.value, client_email, message.as_string())
-  print("Email sent succefully")
-
-  # close smtp session
-  smtp_object.quit()
-
-def main():
-  email_to_send_to = "shahar.arpaly@gmail.com"
-  if is_valid_email_external(email_to_send_to):
-    send_mail(email_to_send_to, create_message("Ata Nagar", Message_Types.reset_password.value))
-  else:
-    pass
-
-if __name__ == "__main__":
-  main()
+def send_email(email: str, message_type: str) -> bool:
+  message_to_send = create_message(Message_Types_Titles[message_type].value, Message_Types[message_type].value)
+  send_email_internal(email, message_to_send)
