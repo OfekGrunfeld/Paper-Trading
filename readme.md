@@ -1,4 +1,4 @@
- PaperTrading by Ofek Grunfeld
+# Papertrading by Ofek Grunfeld
 
 Welcome to PaperTrading, a comprehensive and interactive simulation platform designed by Ofek Grunfeld for traders who want to practice their trading strategies without financial risk. This project aims to provide a realistic trading environment where you can test your ideas, learn from the experience, and improve your trading skills.
 
@@ -18,9 +18,4 @@ Before you begin, ensure you have the following installed:
 - Any modern web browser
 
 ### Installation
-
-Clone the PaperTrading repository:
-
-```bash
-git clone https://github.com/ofekgrunfeld/PaperTrading.git
-cd PaperTrading
+- There is no installation
