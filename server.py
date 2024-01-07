@@ -1,6 +1,7 @@
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
 import server_protocol as sp
+from server_protocol import logger
 import database_models
 from database import db_base, db_engine, db_session
 from typing import Generator
@@ -50,11 +51,14 @@ def root():
 # FINAL (for now)
 @papertrading_app.get("/database")
 def get_whole_database(db: Session = Depends(get_db)):
-    return db.query(database_models.User).all()
+    try:
+        return db.query(database_models.User).all()
+    except Exception as error:
+        logger.error(f"Failed getting database: {error}")
 
 # working fine
 @papertrading_app.post("/sign_up")
-def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db)):
+def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db)) -> str:
     try: 
         user_model = database_models.User()
 
@@ -71,11 +75,17 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
         user_model.password = sp.encode_string(password)
 
         # add user to database
-        db.add(user_model)
-        db.commit()
+        try:
+            logger.info(f"Adding new user to the database: {user_model}")
+            db.add(user_model)
+            db.commit()
+        except Exception as error:
+            logger.error(f"Failed adding user to database")
 
         # send mail to user
-        send_email.send_email(email, send_email.Message_Types["sign_up"].value)
+        flag = send_email.send_email(email, send_email.Message_Types["sign_up"].value)
+        if not flag:
+            logger.error(f"Failed sending email to user")
         return "signed up successfully"
     except Exception as error:
         return f"Failed to sign up {error}"

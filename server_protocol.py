@@ -1,9 +1,10 @@
 from enum import Enum
 from hashlib import sha256
-import logging as log
 from sys import stdout
 from validate_email import validate_email
-log.basicConfig(format='%(asctime)s -> %(message)s', datefmt='%d/%m/%Y %H:%M:%S', stream=stdout, level=log.INFO)
+import logger_script 
+
+logger = logger_script.instantiate_logger()
 
 class Constants(Enum):
     HOST_IP = "127.0.0.1"

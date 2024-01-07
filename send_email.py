@@ -3,15 +3,16 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
 from enum import Enum
-from server_protocol import is_valid_email_external, Constants, log
+from server_protocol import is_valid_email_external, Constants, logger
 
 # class to organise different message types
 class Message_Types(Enum):
   reset_password = "reset_password"
   sign_up = "sign_up"
+
 # titles for different message types
 class Message_Types_Titles(Enum):
-  reset_password = "reset_password"
+  reset_password = "Reset Your O.G Papertrading Account's Password"
   sign_up = "Welcome to O.G Papertrading"
 
 def create_message(message_title: str, message_type: str) -> MIMEMultipart:
@@ -43,14 +44,14 @@ def create_message(message_title: str, message_type: str) -> MIMEMultipart:
     with open(f"{absolute_path}.txt", "r") as file:
       text = str(file.read())
   except Exception as error:
-    log.error(f"Error reading reset password text file {error}")
+    logger.error(f"Error reading reset password text file {error}")
   # in html
   html = None
   try:
     with open(f"{absolute_path}.html", "r") as file:
       html = str(file.read())
   except Exception as error:
-    log.error(f"Error reading reset password html file {error}")
+    logger.error(f"Error reading reset password html file {error}")
   
   # Turn the plain text/html to MIMEText objects
   part1 = MIMEText(text, "plain")
@@ -62,7 +63,7 @@ def create_message(message_title: str, message_type: str) -> MIMEMultipart:
     message.attach(part1)
     message.attach(part2)
   except Exception as error:
-    log.error(f"error: {error}")
+    logger.error(f"error: {error}")
 
   return message
   
@@ -78,33 +79,54 @@ def send_email_internal(email: str, message: MIMEMultipart) -> bool:
     # set message recipent
     message["To"] = email
 
-    log.info("Connecting to smtp server")
+    logger.info("Connecting to smtp server")
     # connect to smtp server
     try:
       smtp_object = smtplib.SMTP(Constants.SMTP_SERVER_URL.value, 587)
     except Exception as error:
-      log.error(f"Error in connecting to outlook smtp server | {error}")
+      logger.error(f"Error in connecting to outlook smtp server | {error}")
       smtp_object = smtplib.SMTP_SSL(Constants.SMTP_SERVER_URL.value, 465)
     
-    log.info("Initialising TTLS")
-    # user TTLS (for security reasons)
-    smtp_object.ehlo()
-    smtp_object.starttls()
+    # use TTLS (for security reasons)
+    try: 
+      logger.info("Initialising TTLS")
+      smtp_object.ehlo()
+      smtp_object.starttls()
+    except Exception as error:
+      logger.error(f"Failed initialising TTLS while sending mail to {email}: {error}")
+      smtp_object.quit()
+      return False
 
-    log.info(f"Logging in to server's email: {Constants.SERVER_EMAIL.value}")
-    # log to server email
-    smtp_object.login(Constants.SERVER_EMAIL.value, Constants.SERVER_PASSWORD.value) 
+    # log to server's email 
+    try: 
+      logger.info(f"logging into server's email: {Constants.SERVER_EMAIL.value}")
+      smtp_object.login(Constants.SERVER_EMAIL.value, Constants.SERVER_PASSWORD.value) 
+    except Exception as error:
+      logger.error(f"Failed logging into server's email: {error}")
+      smtp_object.quit()
+      return False
+    
     # send mail
-    log.info(f"Sending email to {email}")
-    smtp_object.sendmail(Constants.SERVER_EMAIL.value, email, message.as_string())
-    log.info("Email sent succefully")
-
+    try:
+      logger.info(f"Sending email to {email}")
+      smtp_object.sendmail(Constants.SERVER_EMAIL.value, email, message.as_string())
+      logger.info("Email sent succefully")
+    except Exception as error:
+      logger.error(f"Failed sending mail to {email}: {error}")
+      smtp_object.quit()
+      return False
+    
     # close smtp session
     smtp_object.quit()
   except Exception as error:
-    log.error(f"Unknown error in sending mail to {email}")
+    logger.error(f"Unknown error in sending mail to {email}")
     return False
 
 def send_email(email: str, message_type: str) -> bool:
-  message_to_send = create_message(Message_Types_Titles[message_type].value, Message_Types[message_type].value)
-  send_email_internal(email, message_to_send)
+  try:
+    message_to_send = create_message(Message_Types_Titles[message_type].value, Message_Types[message_type].value)
+    send_email_internal(email, message_to_send)
+    return True
+  except Exception as error:
+    logger.error(f"Failed sending {message_type} email to {email}")
+    return False

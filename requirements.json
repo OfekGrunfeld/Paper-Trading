@@ -15,7 +15,8 @@
         "os",
         "requests",
         "logging",
-        "sys"
+        "sys",
+        "uuid"
     ]
 
 }
