@@ -2,9 +2,7 @@
     "libraries": [
         "uvicorn",
         "fastapi",
-        "pydantic",
-        "git+https://gitea.ksol.io/karolyi/py3-validate-email@v1.0.9" 
-        
+        "git+https://gitea.ksol.io/karolyi/py3-validate-email@v1.0.9"
     ],
     "modules": [
         "enum",
@@ -18,5 +16,4 @@
         "sys",
         "uuid"
     ]
-
 }

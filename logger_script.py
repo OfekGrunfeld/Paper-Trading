@@ -39,21 +39,23 @@ class ColoredFormatter(logging.Formatter):
     # absolute junk
     def format(self, record):
         """Applies the color formats to the log level name"""
-        # colour the message
-        record.msg = self._colors[record.levelno] + record.msg + self.RESET
         # Save original levelname
         original_levelname = record.levelname
+        original_msg = record.msg
 
         # Colorize the levelname
         if record.levelno in self._colors:
             colored_levelname = self._colors[record.levelno] + original_levelname + self.RESET
             record.levelname = colored_levelname
+            colored_msg = self._colors[record.levelno] + original_msg + self.RESET
+            record.msg = colored_msg
 
         # Proceed with the standard formatting
         formatted_message = logging.Formatter.format(self, record)
 
-        # Revert levelname to avoid affecting other loggers
+        # Revert to avoid affecting other loggers
         record.levelname = original_levelname
+        record.msg = original_msg
 
         return formatted_message
 
@@ -80,4 +82,5 @@ def instantiate_logger() -> logging.Logger:
     except Exception as error:
         print(f"Error in instantiating logger: {error}")
         return None
+    
 
