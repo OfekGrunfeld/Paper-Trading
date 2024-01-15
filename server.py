@@ -48,6 +48,22 @@ def does_username_and_password_match(user_model, username: str, password: str):
 def root():
     return {"message": "Hello World"}
 
+@papertrading_app.get("/get_user_by_username")
+def get_user_by_username(username: str, db: Session = Depends(get_db)):
+    try:
+        # get user with id from database
+        user_model = db.query(database_models.User).filter(database_models.User.username == username).first()
+        
+        # check if there is no such user
+        if user_model is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"ID: {username} does not exist"
+            )
+        
+        return db.query(database_models.User).all()
+    except Exception as error:
+        logger.error(f"Failed getting user: {error}")
 # FINAL (for now)
 @papertrading_app.get("/database")
 def get_whole_database(db: Session = Depends(get_db)):
