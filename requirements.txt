@@ -1,0 +1,6 @@
+uvicorn
+fastapi
+git+https://gitea.ksol.io/karolyi/py3-validate-email@v1.0.9
+flet
+opencv-python
+SQLAlchemy
