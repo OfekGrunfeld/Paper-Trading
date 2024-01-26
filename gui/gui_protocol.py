@@ -1,11 +1,82 @@
 from enum import Enum
 import flet as ft
 import os
+from typing import Union
 import sys
 
-path1 = sys.path
-print("\n".join(path1), end="\n\n\n")
+
+class Constants(Enum):
+    name_of_program = "O.G Papertrading"
+    default_theme = ft.ThemeMode.LIGHT
+    default_height = 1080
+    default_width = 1920
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+
+    content_width = default_width
+    welcome_image_path = None
+
+class ImageSizes(Enum):
+    welcome = (1920, 850)
+
+
+# Code I definitely didn't write
+class Singleton(type):
+    _instances = {}
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+class App(metaclass=Singleton):
+    """
+    App class is a singleton that is instantiated at main.py 
+    and it's functions can be called from other scripts
+    !!!!! BUT NOT WORKING AS INTENDED  !!!!!
+    """
+    def __init__(self):
+        pass
+    @property
+    def page(self) -> ft.app:
+        return self.page
+    
+    @page.setter
+    def page(self, page: ft.app):
+        self._page = page
+        
+    def toggle_theme_icon_button(self, e) -> None:
+        if self._page.theme_mode == ft.ThemeMode.LIGHT:
+            self._page.theme_mode = ft.ThemeMode.DARK
+        else:
+            self._page.theme_mode = ft.ThemeMode.LIGHT
+        e.control.selected = not e.control.selected
+        e.control.update()
+        self._page.update()
+
+    def toggle_theme_text_button(self, e) -> None:
+        if self._page.theme_mode == ft.ThemeMode.DARK:
+            self._page.theme_mode = ft.ThemeMode.LIGHT
+        else: 
+            self._page.theme_mode = ft.ThemeMode.DARK
+        self._page.update()
+    
+    def toggle_theme_switch(self, e):
+        if self._page.theme_mode == ft.ThemeMode.DARK:
+            self._page.theme_mode = ft.ThemeMode.LIGHT
+        else: 
+            self._page.theme_mode = ft.ThemeMode.DARK
+        self._page.update()
+
+    def exit_app(self, e):
+        self._page.window_destroy()
+        
+app: Union[App, None] = App()
+
+
 def get_directory_of_project():
+    """
+    Useless because in order to use this function you must first import this
+    this file and therefore you don't need to see what the directory of file is
+    """
     # Start with the current file's directory
     current_path = os.path.abspath(os.path.dirname(__file__))
 
@@ -18,23 +89,3 @@ def get_directory_of_project():
         return current_path
     else:
         raise Exception("Failed to find a directory ending with 'papertrading'")
-papertrading_dir = get_directory_of_project()
-sys.path.append(papertrading_dir)
-path2 = sys.path
-print("\n".join(path2))
-
-"""
-class Constants(Enum):
-    name_of_program = "O.G Papertrading"
-    default_theme = ft.ThemeMode.LIGHT
-    default_height = 1080
-    default_width = 1920
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-
-    content_width = default_width
-    welcome_image_path = str(dir_path).replace("\gui", "") + r"\images\welcome_page\cool.jpg"
-
-
-class ImageSizes(Enum):
-    welcome = (1920, 850)
-"""
