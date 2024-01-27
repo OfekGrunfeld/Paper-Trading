@@ -1,12 +1,14 @@
 import flet as ft
 import gui_protocol as gp
 from Router import Router
+from typing import Union
 
 class SettingsView:
     def __init__(self, router: Router):
         self._router: Router = router
-        self._content: ft.Column = self.init_content()
+        self.page: Union[ft.Page, None] = None
 
+        self._content: ft.Column = self.init_content()
 
     def init_content(self) -> ft.Column:
         content: ft.Column = ft.Column(
@@ -42,4 +44,5 @@ class SettingsView:
         return content
 
     def __call__(self, router: Router) -> ft.Column:
+        self.page: Union[ft.Page, None] = gp.app.page
         return self._content

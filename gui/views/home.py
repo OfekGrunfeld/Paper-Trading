@@ -16,13 +16,12 @@ Fusce aliquam finibus eros, vitae consectetur quam luctus sed. Phasellus eget er
 """
 class HomeView:
     def __init__(self, router: Router):
-        self.page: Union[ft.Page, None] = None
         self._router = router
+        self.page: Union[ft.Page, None] = None
 
         # Welcome image of homepage
         self.welcome_container = self.init_welcome_container()
         self.arrow_down = self.init_arrow_down()
-        self.main_column = None
 
         # Content (Combines everything)
         self._content = self.init_content()
@@ -51,16 +50,10 @@ class HomeView:
                 icon=ft.icons.KEYBOARD_DOUBLE_ARROW_DOWN_ROUNDED,
                 icon_color=ft.colors.BLUE_400,
                 icon_size=50,
-                on_click = lambda _: self.main_column.scroll_to(key="A", duration=1000)
+                on_click = lambda _: self._content.scroll_to(key="A", duration=1000)
             ),
         )
         return arrow_down
-    
-    def init_sign_up_boxes(self):
-        email_field = ft.TextField(label="Email", max_lines=1, width=280, hint_text="Enter email here")
-        username_field = ft.TextField(label="Username", max_lines=1, width=280, hint_text="Enter username here")
-        password_field = ft.TextField(label="Password", password=True, can_reveal_password=True, max_lines=1, width=280, hint_text="Enter password here")
-        return [email_field, username_field, password_field]
     
     def init_content(self) -> ft.Column:
         content = ft.Column(
@@ -110,6 +103,7 @@ class HomeView:
     
     
     def __call__(self, router: Router) -> ft.Column:
+        self.page: Union[ft.Page, None] = gp.app.page
         return self._content
 """
 def send_data(e: ft.ControlEvent):

@@ -24,6 +24,8 @@ def get_db() -> Generator[Session, any, None]:
     try:
         db = db_session()
         yield db
+    except Exception as error:
+        logger.critical(f"ERROR IN GETTING DATABASE: {error}")
     finally:
         db.close()
 
@@ -64,6 +66,7 @@ def get_user_by_username(username: str, db: Session = Depends(get_db)):
         return db.query(database_models.User).all()
     except Exception as error:
         logger.error(f"Failed getting user: {error}")
+
 # FINAL (for now)
 @papertrading_app.get("/database")
 def get_whole_database(db: Session = Depends(get_db)):
@@ -74,16 +77,21 @@ def get_whole_database(db: Session = Depends(get_db)):
 
 # working fine
 @papertrading_app.post("/sign_up")
-def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db)) -> str:
+def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db)) -> dict[str, str | bool]:
+    return_dict = {"sign_up_success": False, "error": ""}
     try: 
         user_model = database_models.User()
 
         # filter out using email or username that is already being used
         if db.query(database_models.User).filter(database_models.User.email == email).first() is not None:
-            return "Failed to sign up. Email associated with existing user"
+            return_dict["error"] = "Failed to sign up. Email associated with existing user"
+            return return_dict
         # save email as string, save username and password encoded sha256 to database
+        logger.info("Checking if email exists by SMTP and DNS")
         if not sp.is_valid_email_external(email):
-            return "Invalid email address"
+            return_dict["error"] = "Invalid email address"
+            return return_dict
+        logger.info(f"Email exists: {email}")
         
         # create user with email, username and password 
         user_model.email = email.lower()
@@ -95,16 +103,26 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
             logger.info(f"Adding new user to the database: {user_model}")
             db.add(user_model)
             db.commit()
+            logger.info(f"Added new user to the database: {user_model}")
         except Exception as error:
             logger.error(f"Failed adding user to database")
+            return_dict["error"] = "Internal Server Error"
+            raise HTTPException(
+                status_code=500,
+                detail=return_dict
+            )
+            
 
         # send mail to user
         flag = send_email.send_email(email, send_email.Message_Types["sign_up"].value)
-        if not flag:
+        if not return_dict:
+            # Unsure weather to return false if email failed to send
             logger.error(f"Failed sending email to user")
-        return "signed up successfully"
+        return_dict["sign_up_success"] = True
+        return return_dict
     except Exception as error:
-        return f"Failed to sign up {error}"
+        return_dict["sign_up_success"] = False
+        return_dict["error"] = "Internal Server Error"
 
 # currently deleted with username and not email / both
 @papertrading_app.delete("/delete_user")
