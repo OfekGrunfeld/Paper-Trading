@@ -2,18 +2,17 @@ from enum import Enum
 import flet as ft
 import os
 from typing import Union
-import sys
-
+import requests
 
 class Constants(Enum):
     name_of_program = "O.G Papertrading"
     default_theme = ft.ThemeMode.LIGHT
     default_height = 1080
     default_width = 1920
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-
+    gui_root_path = os.path.dirname(os.path.realpath(__file__))
     content_width = default_width
-    welcome_image_path = None
+    welcome_image_path = gui_root_path + r"\assets\welcome.jpg"
+    server_url = "http://127.0.0.1:5555" # Needs to be dynamic!!!!
 
 class ImageSizes(Enum):
     welcome = (1920, 850)
@@ -35,9 +34,13 @@ class App(metaclass=Singleton):
     """
     def __init__(self):
         pass
+    
     @property
     def page(self) -> ft.app:
-        return self.page
+        try:
+            return self._page
+        except AttributeError:
+            return None
     
     @page.setter
     def page(self, page: ft.app):

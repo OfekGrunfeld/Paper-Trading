@@ -15,14 +15,21 @@ class Router:
         self.routes = {}
         self.body = ft.Container()
 
+    """
     def set_route(self, stub: str, view: Callable):
         self.routes[stub] = view
     
     def set_routes(self, route_dictionary: dict):
-        """Sets multiple routes at once. Ex: {"/": IndexView }"""
+        
+        #Sets multiple routes at once. Ex: {"/": IndexView }
+        
         self.routes.update(route_dictionary)
+    """
 
     def route_change(self, route):
+        """
+        Don't touch - flet stuff 
+        """
         _page = route.route.split("?")[0]
         queries = route.route.split("?")[1:]
 
@@ -34,12 +41,16 @@ class Router:
         self.body.content = self.routes[_page](self)
         self.body.update()
 
-    def set_data(self, key, value):
-        self.data[key] = value
+    """
+    No clue what this was for
+    
+    #def set_data(self, key, value):
+    #    self.data[key] = value
 
-    def get_data(self, key):
-        return self.data.get(key)
+    #def get_data(self, key):
+    #    return self.data.get(key)
 
-    def get_query(self, key):
-        return self.data.get(key)
+    #def get_query(self, key):
+    #    return self.data.get(key)
+    """
 

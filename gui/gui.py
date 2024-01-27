@@ -30,7 +30,6 @@ class App:
         # Routing Settings
         self.page.on_route_change = router.route_change
 
-        router.page = page
         page.add(
             router.body
         )
