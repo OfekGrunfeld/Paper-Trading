@@ -9,12 +9,14 @@ class SignUpView:
         self._router: Router = router
         self.page: Union[ft.Page, None] = None
         
+        
         # Fields for sign up - email, username, password
         self.fields: list[ft.TextField] = self.init_sign_up_fields()
         self.submit_button = ft.ElevatedButton(text="Submit", on_click=self.submit_button_clicked)
         self.response_text = ft.Container()
         # Column for all fields
         self._content: ft.Column = self.init_content()
+
 
     def init_sign_up_fields(self) -> list[ft.TextField]:
         email_field = ft.TextField(label="Email", max_lines=1, width=280, hint_text="Enter email here")
