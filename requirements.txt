@@ -5,3 +5,4 @@ flet
 opencv-python
 SQLAlchemy
 requests
+pyotp

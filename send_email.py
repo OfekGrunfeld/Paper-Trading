@@ -3,7 +3,10 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
 from enum import Enum
-from server_protocol import is_valid_email_external, Constants, logger
+from server_protocol import Constants, logger
+from typing import Union
+from random import randint
+from email_verification import Verification
 
 # class to organise different message types
 class Message_Types(Enum):
@@ -32,27 +35,9 @@ def create_message(message_title: str, message_type: str) -> MIMEMultipart:
   message["Subject"] = message_title
   message["From"] = Constants.SERVER_EMAIL.value
   
-  # get absoulte path of email message
-  script_dir = os.path.dirname(__file__)
-  relative_path = fr"emails\{message_type}\{message_type}"
-  absolute_path = os.path.join(script_dir, relative_path)
+  # get email text and html files in strings
+  text, html = get_email_text_and_html_by_type(message_type)
 
-  # get email message
-  # in plain text
-  text = None
-  try:
-    with open(f"{absolute_path}.txt", "r") as file:
-      text = str(file.read())
-  except Exception as error:
-    logger.error(f"Error reading reset password text file {error}")
-  # in html
-  html = None
-  try:
-    with open(f"{absolute_path}.html", "r") as file:
-      html = str(file.read())
-  except Exception as error:
-    logger.error(f"Error reading reset password html file {error}")
-  
   # Turn the plain text/html to MIMEText objects
   part1 = MIMEText(text, "plain")
   part2 = MIMEText(html, "html")
@@ -63,10 +48,40 @@ def create_message(message_title: str, message_type: str) -> MIMEMultipart:
     message.attach(part1)
     message.attach(part2)
   except Exception as error:
-    logger.error(f"error: {error}")
+    logger.error(f"Error in attaching message text and html: {error}")
 
   return message
+
+def get_email_text_and_html_by_type(message_type: str) -> tuple[str, str]:
+  try:
+    # get absoulte path of email message
+    script_dir = os.path.dirname(__file__)
+    relative_path = fr"emails\{message_type}\{message_type}"
+    absolute_path = os.path.join(script_dir, relative_path)
+  except Exception as error:
+    logger.error(f"Error in getting absoulte path of email message: {error}")
+
+  # get email message
+  # in plain text (string)
+  text: Union[str, None] = None
+  try:
+    with open(f"{absolute_path}.txt", "r") as file:
+      text = str(file.read())
+  except Exception as error:
+    logger.error(f"Error reading reset password text file {error}")
+  # in html (string)
+  html: Union[str, None] = None
+  try:
+    with open(f"{absolute_path}.html", "r") as file:
+      html = str(file.read())
+  except Exception as error:
+    logger.error(f"Error reading reset password html file {error}")
   
+  if text is None or html is None:
+    logger.error(f"Email is empty or error reading email message")
+
+  return text, html
+
 def send_email_internal(email: str, message: MIMEMultipart) -> bool:
   """
   Sends an email to the client using the server's email
@@ -87,7 +102,7 @@ def send_email_internal(email: str, message: MIMEMultipart) -> bool:
       logger.error(f"Error in connecting to outlook smtp server | {error}")
       smtp_object = smtplib.SMTP_SSL(Constants.SMTP_SERVER_URL.value, 465)
     
-    # use TTLS (for security reasons)
+    # use TTLS (for security)
     try: 
       logger.info("Initialising TTLS")
       smtp_object.ehlo()
@@ -106,7 +121,7 @@ def send_email_internal(email: str, message: MIMEMultipart) -> bool:
       smtp_object.quit()
       return False
     
-    # send mail
+    # send email
     try:
       logger.info(f"Sending email to {email}")
       smtp_object.sendmail(Constants.SERVER_EMAIL.value, email, message.as_string())
@@ -122,11 +137,13 @@ def send_email_internal(email: str, message: MIMEMultipart) -> bool:
     logger.error(f"Unknown error in sending mail to {email}")
     return False
 
-def send_email(email: str, message_type: str) -> bool:
+def send_email(email: str, message_type: str) -> Union[Verification, None]:
   try:
     message_to_send = create_message(Message_Types_Titles[message_type].value, Message_Types[message_type].value)
     send_email_internal(email, message_to_send)
-    return True
+    if message_type == Message_Types_Titles.sign_up.value:
+      return Verification()
+    return None
   except Exception as error:
     logger.error(f"Failed sending {message_type} email to {email}")
-    return False
+    return None

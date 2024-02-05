@@ -3,7 +3,8 @@ from fastapi import FastAPI, Depends, HTTPException
 import server_protocol as sp
 from server_protocol import logger
 import database_models
-from database import db_base, db_engine, db_session
+from database import db_base, db_engine, db_session, pending_db_base, pending_db_engine, pending_db_session
+from database import verifications_db_base, verifications_db_engine, verifications_db_session
 from typing import Generator
 # for typehints
 from sqlalchemy.orm import Session
@@ -16,19 +17,38 @@ HOST_PORT = sp.Constants.HOST_PORT.value
 
 # Create FastAPI app
 papertrading_app = FastAPI()
+
 # Create database, Connect to engine
 db_base.metadata.create_all(bind=db_engine)
+pending_db_base.metadata.create_all(bind=pending_db_engine)
+verifications_db_session.metadata.create_all(bind=verifications_db_engine)
 
-# Get database with generator function
-def get_db() -> Generator[Session, any, None]:
+# Get databases with generator function
+def get_userbase() -> Generator[Session, any, None]:
     try:
         db = db_session()
         yield db
     except Exception as error:
-        logger.critical(f"ERROR IN GETTING DATABASE: {error}")
+        logger.critical(f"ERROR IN GETTING USERBASE: {error}")
     finally:
         db.close()
-
+def get_pending_userbase() -> Generator[Session, any, None]:
+    try:
+        pending_db = pending_db_session()
+        yield pending_db
+    except Exception as error:
+        logger.critical(f"ERROR IN GETTING PENDING USERBASE: {error}")
+    finally:
+        pending_db.close()
+def get_verifications_database() -> Generator[Session, any, None]:
+    try:
+        verifications_db = verifications_db_session()
+        yield verifications_db
+    except Exception as error:
+        logger.critical(f"ERROR IN GETTING VERIFICATIONS DATABASE: {error}")
+    finally:
+        verifications_db.close()
+    
 def does_username_and_password_match(user_model, username: str, password: str):
     """
     Checks if the username and password entered match the ones in the database
@@ -51,7 +71,7 @@ def root():
     return {"message": "Hello World"}
 
 @papertrading_app.get("/get_user_by_username")
-def get_user_by_username(username: str, db: Session = Depends(get_db)):
+def get_user_by_username(username: str, db: Session = Depends(get_userbase)):
     try:
         # get user with id from database
         user_model = db.query(database_models.User).filter(database_models.User.username == username).first()
@@ -69,7 +89,7 @@ def get_user_by_username(username: str, db: Session = Depends(get_db)):
 
 # FINAL (for now)
 @papertrading_app.get("/database")
-def get_whole_database(db: Session = Depends(get_db)):
+def get_whole_database(db: Session = Depends(get_userbase)):
     try:
         return db.query(database_models.User).all()
     except Exception as error:
@@ -77,7 +97,11 @@ def get_whole_database(db: Session = Depends(get_db)):
 
 # working fine
 @papertrading_app.post("/sign_up")
-def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db)) -> dict[str, str | bool]:
+def sign_up(email: str, username: str, password: str, 
+            db: Session = Depends(get_userbase), 
+            pending_db: Session = Depends(get_pending_userbase), 
+            verifications_db = Depends(get_verifications_database)) -> dict[str, str | bool]:
+    
     return_dict = {"sign_up_success": False, "error": ""}
     try: 
         user_model = database_models.User()
@@ -100,10 +124,10 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
 
         # add user to database
         try:
-            logger.info(f"Adding new user to the database: {user_model}")
-            db.add(user_model)
-            db.commit()
-            logger.info(f"Added new user to the database: {user_model}")
+            logger.info(f"Adding new user to the pending database: {user_model.email} | {user_model.username}")
+            pending_db.add(user_model)
+            pending_db.commit()
+            logger.info(f"Added new user to the database: {user_model.email} | {user_model.username}")
         except Exception as error:
             logger.error(f"Failed adding user to database")
             return_dict["error"] = "Internal Server Error"
@@ -111,22 +135,23 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
                 status_code=500,
                 detail=return_dict
             )
-            
+        
+        # verify creating user - send a verification code and wait for response
+        
+        verification = send_email.send_email(email, send_email.Message_Types["sign_up"].value)
 
-        # send mail to user
-        flag = send_email.send_email(email, send_email.Message_Types["sign_up"].value)
-        if not return_dict:
-            # Unsure weather to return false if email failed to send
-            logger.error(f"Failed sending email to user")
         return_dict["sign_up_success"] = True
         return return_dict
     except Exception as error:
         return_dict["sign_up_success"] = False
         return_dict["error"] = "Internal Server Error"
+        return return_dict
 
+def verify_sign_up(user_id: UUID, code: str) -> bool:
+    
 # currently deleted with username and not email / both
 @papertrading_app.delete("/delete_user")
-def delete_user(user_id: UUID, username: str, password: str, db: Session = Depends(get_db)):
+def delete_user(user_id: UUID, username: str, password: str, db: Session = Depends(get_userbase)):
     try: 
         # get user with id from database
         user_model = db.query(database_models.User).filter(database_models.User.id == user_id).first()
@@ -150,7 +175,7 @@ def delete_user(user_id: UUID, username: str, password: str, db: Session = Depen
 
 # working fine
 @papertrading_app.put("/update_user")
-def update_user(user_id: UUID, username: str, password: str, new_username, new_password: str, db: Session = Depends(get_db)):
+def update_user(user_id: UUID, username: str, password: str, new_username, new_password: str, db: Session = Depends(get_userbase)):
     try: 
         # don't update user if there is nothing to change
         if new_username == username and new_password == password:

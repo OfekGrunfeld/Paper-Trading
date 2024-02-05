@@ -45,7 +45,10 @@ class App(metaclass=Singleton):
     @page.setter
     def page(self, page: ft.app):
         self._page = page
-        
+    
+    """
+    All features shall be moved to specific pages later
+    """
     def toggle_theme_icon_button(self, e) -> None:
         if self._page.theme_mode == ft.ThemeMode.LIGHT:
             self._page.theme_mode = ft.ThemeMode.DARK
@@ -75,6 +78,7 @@ class App(metaclass=Singleton):
 app: Union[App, None] = App()
 
 
+# don't use
 def get_directory_of_project():
     """
     Useless because in order to use this function you must first import this

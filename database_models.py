@@ -54,3 +54,19 @@ class User(db_base):
             return f"id: {self.id}, email: {self.email}, username: {self.username}, password: {self.password}"
         except Exception as error:
             return f"Failed creating string: {error}"
+        
+
+class PendingUser(db_base):
+    __tablename__ = "pending_userbase"
+
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4, unique=True)
+    
+    email = Column(String, nullable=False, unique=True)
+    username = Column(String, nullable=False, unique=True)
+    password = Column(String, nullable=False)
+
+    def __str__(self) -> str:
+        try:
+            return f"id: {self.id}, email: {self.email}, username: {self.username}, password: {self.password}"
+        except Exception as error:
+            return f"Failed creating string: {error}"

@@ -47,28 +47,45 @@ class SignUpView:
             ]
         )
         return content
+
+    #herlaergluesrlguelurgleuiglergl
+    def init_dialog(self):
+        pass
     def submit_button_clicked(self, e):
         email, username, password = [field.value for field in self.fields]
         params = {"email": email, "username": username, "password": password}
-        response = requests.post(url=f"{gp.Constants.server_url.value}/sign_up", params=params)
+        try:
+            response = requests.post(url=f"{gp.Constants.server_url.value}/sign_up", params=params)
+        except Exception as error:
+            self._content.controls.append(
+                ft.Container(
+                    ft.Text(
+                        value="Server is currently down. Try to sign up later"
+                    ),
+                )
+            )
+            print("what")
+            return
+
+        print(f"response: {response.status_code}, {response.json()}")
         if response.status_code == 200 and response.json()["sign_up_success"] == True:
-            self.page.add(
+            self._content.controls.append(
                 ft.Container(
                     ft.Text(
                         value="Signed Up Successfully!"
-                    )
+                    ),
                 )
             )
         else:
-            self.page.add(
+            self._content.controls.append(
                 ft.Container(
                     ft.Text(
                         value="Error signing up"
-                    )
+                    ),
                 )
             )
-
-        print(response)
+        self.page.update()
+    
     
     def __call__(self, router: Router) -> ft.Column:
         self.page: Union[ft.Page, None] = gp.app.page
@@ -91,4 +108,3 @@ def send_data(e: ft.ControlEvent):
     else:
         e.page.go("/data")
     """
-
