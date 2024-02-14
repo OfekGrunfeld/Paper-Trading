@@ -1,8 +1,10 @@
-from server import db_base
-from sqlalchemy import Column, String
+from server import db_base_userbase
+from database import db_metadata_users_stocks, db_metadata_stocksbase, db_engine_stocksbase
+from sqlalchemy import Column, String, Table, Integer
 from sqlalchemy.types import TypeDecorator, CHAR
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
+from server_protocol import logger
 
 # "quick fix for uuid"
 # i have no clue how this works 
@@ -40,8 +42,8 @@ class GUID(TypeDecorator):
                 value = uuid.UUID(value)
             return value
         
-class User(db_base):
-    __tablename__ = "userbase"
+class Userbase(db_base_userbase):
+    __tablename__ = "Userbase"
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4, unique=True)
     
@@ -54,3 +56,55 @@ class User(db_base):
             return f"id: {self.id}, email: {self.email}, username: {self.username}, password: {self.password}"
         except Exception as error:
             return f"Failed creating string: {error}"
+
+# Not completed
+class Users_Stocks():
+    """
+    
+    """
+    __tablename__ = "Users_Stocks"
+
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4, unique=True)
+
+    def __str__(self) -> str:
+        try:
+            return None
+        except Exception as error:
+            return f"Failed creating string: {error}"
+
+def generate_stock_table_for_stocksbase_by_ticker(ticker: str):
+    """
+    Generate a table for a specific stock in the stocksbase database
+    :param ticker: A valid ticker (stock symbol, e.g: AAPL)
+    """
+    # NOT COMPLETE - ADD VALIDATION FOR STOCKS TICKERS
+    possible_tickers = []
+    possible_tickers.append(ticker)
+    if ticker not in possible_tickers:
+        logger.warning("Specified ticker is not valid")
+        return 
+    
+    new_table = Table(
+        ticker,
+        db_metadata_stocksbase,
+        Column("ticker", String, default=ticker, primary_key=True)
+    )
+    new_table.create(db_engine_stocksbase)
+        
+generate_stock_table_for_stocksbase_by_ticker
+AAPL = Table(
+    "AAPL",
+    db_metadata_stocksbase,
+    Column("ticker", String, default="AAPL", primary_key=True),
+)
+BA = Table(
+    "BA",
+    db_metadata_stocksbase,
+    Column("ticker", String, default="BA", primary_key=True),
+)
+AMZN = Table(
+    "AMZN",
+    db_metadata_stocksbase,
+    Column("ticker", String, default="AAPL", primary_key=True),
+)
+

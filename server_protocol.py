@@ -3,15 +3,20 @@ from hashlib import sha256
 from sys import stdout
 from validate_email import validate_email
 import logger_script 
+import os
 
 logger = logger_script.instantiate_logger()
 
 class Constants(Enum):
     HOST_IP = "127.0.0.1"
     HOST_PORT = 5555
+
     SERVER_EMAIL = "ofekserver@outlook.com"
     SERVER_PASSWORD = "MyServer123"
     SMTP_SERVER_URL = "smtp-mail.outlook.com"
+
+    root_path = os.path.dirname(os.path.realpath(__file__))
+    stock_tickers_location = root_path + r"\stocks\tickers.txt"
 
 def encode_string(string: str) -> str:
     """

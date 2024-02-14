@@ -2,13 +2,16 @@ import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
 import server_protocol as sp
 from server_protocol import logger
-import database_models
-from database import db_base, db_engine, db_session
+import database_models as db_m
+from database import (db_base_userbase, db_engine_userbase, db_session_userbase,
+                      db_engine_users_stocks, db_metadata_users_stocks,
+                      db_engine_stocksbase, db_metadata_stocksbase)
+
 from typing import Generator
+import send_email
 # for typehints
 from sqlalchemy.orm import Session
 from uuid import UUID
-import send_email
 
 # CONSTANTS
 HOST_IP = sp.Constants.HOST_IP.value
@@ -16,16 +19,18 @@ HOST_PORT = sp.Constants.HOST_PORT.value
 
 # Create FastAPI app
 papertrading_app = FastAPI()
-# Create database, Connect to engine
-db_base.metadata.create_all(bind=db_engine)
+# Create database 
+db_base_userbase.metadata.create_all(bind=db_engine_userbase)
+# Create Stocksbase
+db_metadata_stocksbase.create_all(db_engine_stocksbase)
 
 # Get database with generator function
-def get_db() -> Generator[Session, any, None]:
+def get_db_userbase() -> Generator[Session, any, None]:
     try:
-        db = db_session()
+        db = db_session_userbase()
         yield db
     except Exception as error:
-        logger.critical(f"ERROR IN GETTING DATABASE: {error}")
+        logger.critical(f"ERROR IN GETTING USERBASE DATABASE: {error}")
     finally:
         db.close()
 
@@ -34,7 +39,7 @@ def does_username_and_password_match(user_model, username: str, password: str):
     Checks if the username and password entered match the ones in the database
     
     Parameters:
-        user_model (database_models.User): An existing user in the database
+        user_model (db_m.Userbase): An existing user in the database
         username (str): username
         password (str): password
     
@@ -51,10 +56,10 @@ def root():
     return {"message": "Hello World"}
 
 @papertrading_app.get("/get_user_by_username")
-def get_user_by_username(username: str, db: Session = Depends(get_db)):
+def get_user_by_username(username: str, db: Session = Depends(get_db_userbase)):
     try:
         # get user with id from database
-        user_model = db.query(database_models.User).filter(database_models.User.username == username).first()
+        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.username == username).first()
         
         # check if there is no such user
         if user_model is None:
@@ -63,27 +68,27 @@ def get_user_by_username(username: str, db: Session = Depends(get_db)):
                 detail=f"ID: {username} does not exist"
             )
         
-        return db.query(database_models.User).all()
+        return db.query(db_m.Userbase).all()
     except Exception as error:
         logger.error(f"Failed getting user: {error}")
 
 # FINAL (for now)
 @papertrading_app.get("/database")
-def get_whole_database(db: Session = Depends(get_db)):
+def get_whole_database(db: Session = Depends(get_db_userbase)):
     try:
-        return db.query(database_models.User).all()
+        return db.query(db_m.Userbase).all()
     except Exception as error:
         logger.error(f"Failed getting database: {error}")
 
 # working fine
 @papertrading_app.post("/sign_up")
-def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db)) -> dict[str, str | bool]:
+def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db_userbase)) -> dict[str, str | bool]:
     return_dict = {"sign_up_success": False, "error": ""}
     try: 
-        user_model = database_models.User()
+        user_model = db_m.Userbase()
 
         # filter out using email or username that is already being used
-        if db.query(database_models.User).filter(database_models.User.email == email).first() is not None:
+        if db.query(db_m.Userbase).filter(db_m.Userbase.email == email).first() is not None:
             return_dict["error"] = "Failed to sign up. Email associated with existing user"
             return return_dict
         # save email as string, save username and password encoded sha256 to database
@@ -126,10 +131,10 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
 
 # currently deleted with username and not email / both
 @papertrading_app.delete("/delete_user")
-def delete_user(user_id: UUID, username: str, password: str, db: Session = Depends(get_db)):
+def delete_user(user_id: UUID, username: str, password: str, db: Session = Depends(get_db_userbase)):
     try: 
         # get user with id from database
-        user_model = db.query(database_models.User).filter(database_models.User.id == user_id).first()
+        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
         
         # check if there is no such user
         if user_model is None:
@@ -141,7 +146,7 @@ def delete_user(user_id: UUID, username: str, password: str, db: Session = Depen
         # delete user if the username and password match the ones in the database
         if does_username_and_password_match(user_model, username, password):
             # delete user
-            db.query(database_models.User).filter(database_models.User.id == user_id).delete()
+            db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).delete()
             db.commit()
             return "Deleted user successfully"
         return "username or password do not match"
@@ -150,14 +155,14 @@ def delete_user(user_id: UUID, username: str, password: str, db: Session = Depen
 
 # working fine
 @papertrading_app.put("/update_user")
-def update_user(user_id: UUID, username: str, password: str, new_username, new_password: str, db: Session = Depends(get_db)):
+def update_user(user_id: UUID, username: str, password: str, new_username, new_password: str, db: Session = Depends(get_db_userbase)):
     try: 
         # don't update user if there is nothing to change
         if new_username == username and new_password == password:
             return "There is nothing to change"
         
         # get user with id from database
-        user_model = db.query(database_models.User).filter(database_models.User.id == user_id).first()
+        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
         # raise exception if there is no such user
         if user_model is None:
             raise HTTPException(

@@ -5,3 +5,6 @@ flet
 opencv-python
 SQLAlchemy
 requests
+padnas
+yfinance
+numpy

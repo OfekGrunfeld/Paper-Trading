@@ -1,6 +1,6 @@
 import flet as ft
-import gui_protocol as gp
-from Router import Router
+import gui.gui_protocol as gp
+from gui.router import Router
 from typing import Union
 
 class SettingsView:

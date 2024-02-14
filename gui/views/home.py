@@ -1,7 +1,7 @@
 from typing import Union
 import flet as ft
-from Router import Router
-import gui_protocol as gp
+from gui.router import Router
+import gui.gui_protocol as gp
 
 Lorem_ipsum = \
 """

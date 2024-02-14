@@ -1,13 +1,14 @@
 import flet as ft
-from routes import router
-from user_controls.app_bar import init_navigation_bar
+from gui.routes import router
+from gui.user_controls.app_bar import init_navigation_bar
+import gui.gui_protocol as gp
 from typing import Union
-import gui_protocol as gp
+
 
 class App:
     def __init__(self):
         self.page: Union[ft.Page, None] = None
-        self.title: str = "main page"
+        self.title: str = "O.G Papertrading"
         self.theme_mode = ft.ThemeMode.LIGHT
 
     def set_window_size(self) -> None:
