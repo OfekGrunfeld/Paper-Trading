@@ -60,7 +60,7 @@ class StockPuller:
             print(f"No end date specified defaulting to {end}")
         if interval is None:
             interval = "30m"
-            print(f"No end date specified defaulting to {interval}")
+            print(f"No interval specified defaulting to {interval}")
 
         try:
             data = yf.download(tickers=[ticker],start=start,end=end,interval=interval)

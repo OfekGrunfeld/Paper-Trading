@@ -69,35 +69,42 @@ class Stocks:
 
     def change_time(self, e):
         print(f"Time picker changed, value is {self.time_picker.value}")
-        if len(self.picked_times) == 2:
-            self.picked_times = []
-        self.picked_times.append(self.time_picker.value)
-        print(self.picked_times)
+        self.apply_picked_time()
     
-    def change_date(self, e):
-        print(f"Date picker changed, value is {self.date_picker.value}")
-        if len(self.picked_dates) == 2:
-            self.picked_dates = []
-        self.picked_dates.append(self.date_picker.value)
-        if len(self.picked_dates) == 2:
-            self.create_chart(start=self.picked_dates[0], end=self.picked_dates[1])
-        print(self.picked_dates)
-
     def time_picker_dismissed(self, e):
         print(f"Time picker dismissed, value is {self.time_picker.value}")
-        if len(self.picked_times) == 2:
-            self.picked_times = []
+        self.apply_picked_time()
+        
+    def apply_picked_time(self):
+        match(len(self.picked_times)):
+            case 2:
+                print("Already picked two times, applying new start time")
+                self.picked_times = []
+            case 1:
+                print("Applying end time")
+            case 0:
+                print("Applying start time")
         self.picked_times.append(self.time_picker.value)
-        print(self.picked_times)
-    
+
+    def change_date(self, e):
+        print(f"Date picker changed, value is {self.date_picker.value}")
+        self.apply_picked_date()
+
+
     def date_picker_dismissed(self, e):
         print(f"Date picker dismissed, value is {self.date_picker.value}")
-        if len(self.picked_dates) == 2:
-            self.picked_dates = []
+        self.apply_picked_date()
+
+    def apply_picked_date(self):
+        match(len(self.picked_dates)):
+            case 2:
+                print("Already picked two dates, applying new start date")
+                self.picked_dates = []
+            case 1:
+                print("Applying end date")
+            case 0:
+                print("Applying start date")
         self.picked_dates.append(self.date_picker.value)
-        if len(self.picked_dates) == 2:
-            self.create_chart(start=self.picked_dates[0], end=self.picked_dates[1])
-        print(self.picked_dates)
 
     def init_create_graph_button(self):
         create_graph_button = ft.ElevatedButton(
@@ -108,11 +115,13 @@ class Stocks:
     
     def create_graph_button_clicked(self, e):
         print("Button clicked, initiating chart")
-        self.create_chart()
+        if len(self.picked_dates) == 2:
+            self.init_chart(start=self.picked_dates[0], end=self.picked_dates[1])
+        else:
+            self.init_chart()
         
-    
-    def create_chart(self, ticker: str = None, start: datetime.datetime = None, end: datetime.datetime = None, interval: str = None):
-        self.chart = self.init_chart(ticker=ticker, start=start, end=end, interval=interval)
+    def init_chart(self, ticker: str = None, start: datetime.datetime = None, end: datetime.datetime = None, interval: str = None):
+        self.chart = self.get_chart_from_stockpuller(ticker=ticker, start=start, end=end, interval=interval)
         self._content.controls.append(
             ft.Row(
                 width=gp.Constants.default_width.value / 2,
@@ -126,7 +135,7 @@ class Stocks:
         )
         self.page.update()
         
-    def init_chart(self, ticker: str = None, start: datetime.datetime = None, end: datetime.datetime = None, interval: str = None) -> MatplotlibChart:
+    def get_chart_from_stockpuller(self, ticker: str = None, start: datetime.datetime = None, end: datetime.datetime = None, interval: str = None) -> MatplotlibChart:
         my_stock = stock_script.StockPuller.get_stock(ticker=ticker, start=start, end=end, interval=interval)
         print(my_stock)
         fig = stock_script.StockPuller.get_stock_plt_figure(df=my_stock)
