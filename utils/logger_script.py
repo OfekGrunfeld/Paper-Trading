@@ -62,7 +62,13 @@ class ColoredFormatter(logging.Formatter):
     def setLevelColor(self, logging_level, escaped_ansi_code):
         self._colors[logging_level] = escaped_ansi_code
 
+@staticmethod
 def instantiate_logger() -> logging.Logger:
+    """
+    Create a beautiful colored logger
+    
+    :returns: logger - logging.Logger instance
+    """
     try:
         # Create logger
         logger = logging.getLogger(__name__)

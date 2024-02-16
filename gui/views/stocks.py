@@ -2,9 +2,9 @@ from typing import Union, List
 import flet as ft
 from flet.matplotlib_chart import MatplotlibChart
 from gui.router import Router
-import gui.gui_protocol as gp
+import gui.utils.gui_protocol as gp
 import matplotlib
-import stock_script
+import stocks.stock_script as stock_script
 import datetime
 from time import sleep
 

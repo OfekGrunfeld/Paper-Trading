@@ -1,15 +1,18 @@
-from server import db_base_userbase
-from database import db_metadata_users_stocks, db_metadata_stocksbase, db_engine_stocksbase
+import uuid
+
 from sqlalchemy import Column, String, Table, Integer
 from sqlalchemy.types import TypeDecorator, CHAR
 from sqlalchemy.dialects.postgresql import UUID
-import uuid
-from server_protocol import logger
+
+from server import db_base_userbase
+from data.database import (db_metadata_users_stocks, db_metadata_stocksbase, db_engine_stocksbase)
+from utils.server_protocol import logger
 
 # "quick fix for uuid"
 # i have no clue how this works 
 class GUID(TypeDecorator):
-    """Platform-independent GUID type.
+    """
+    Platform-independent GUID type.
     Uses PostgreSQL's UUID type, otherwise uses
     CHAR(32), storing as stringified hex values.
     """
@@ -43,6 +46,10 @@ class GUID(TypeDecorator):
             return value
         
 class Userbase(db_base_userbase):
+    """
+    Userbase databse:
+    ID: guid | EMAIL: string | USERNAME: string | PASSWORD: string
+    """
     __tablename__ = "Userbase"
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4, unique=True)
@@ -60,7 +67,8 @@ class Userbase(db_base_userbase):
 # Not completed
 class Users_Stocks():
     """
-    
+    Users Stocks database
+    ID: guid | ???
     """
     __tablename__ = "Users_Stocks"
 
@@ -72,6 +80,7 @@ class Users_Stocks():
         except Exception as error:
             return f"Failed creating string: {error}"
 
+@staticmethod
 def generate_stock_table_for_stocksbase_by_ticker(ticker: str):
     """
     Generate a table for a specific stock in the stocksbase database
@@ -91,7 +100,6 @@ def generate_stock_table_for_stocksbase_by_ticker(ticker: str):
     )
     new_table.create(db_engine_stocksbase)
         
-generate_stock_table_for_stocksbase_by_ticker
 AAPL = Table(
     "AAPL",
     db_metadata_stocksbase,

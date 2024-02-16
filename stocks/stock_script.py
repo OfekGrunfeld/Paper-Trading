@@ -1,46 +1,29 @@
-import yfinance as yf
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from server_protocol import logger
+from copy import deepcopy
 from enum import Enum
-import server_protocol as sp
 from typing import Union, override, List, Literal
 from datetime import datetime, timedelta
-import matplotlib
-from copy import deepcopy
 
-matplotlib.use("svg")
+import yfinance as yf
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib import use as matplotlib_use
+
+from utils.server_protocol import logger
+import utils.server_protocol as sp
+
+
+matplotlib_use("svg")
 
 class Constants(Enum):
-    tickers = [line.strip() for line in open(sp.Constants.stock_tickers_location.value, "r")]
     default_start_time = datetime.now() - timedelta(days=10, hours=1)
     default_end_time = datetime.now()
 
-class Stock:
-    def __init__(self, stock_ticker: str, start: datetime, end: datetime, interval: str) -> None:
-        self.stock_ticker: str = stock_ticker
-        self.stock_name: str = Stock.translate_stock_ticker_to_name(stock_ticker)
-        self.start = start
-        self.end = end
-        self.interval = interval
-
-    def generate_stock(self) -> pd.DataFrame:
-        """
-        Add stock dataframe (data) to the class based on the start, end and interval
-        """
-        self.stock = StockPuller.get_stock(self.stock_ticker, start=self.start, end=self.end, interval=self.interval)
-        return self.stock
-
-    @staticmethod
-    def translate_stock_ticker_to_name(stock_ticker: str) -> str:
-        pass
-   
 class StockPuller:
     @staticmethod
     def get_stock(ticker: str = None, start: datetime = None, end: datetime = None, interval: str = None) -> Union[pd.DataFrame, None]:
         """
-        Get a dataframe of multiple stocks
+        Get a dataframe of a stock - pull data from yfinance
+
         :patam tickers: Stock ticker. E.g: AMZN, AAPL
         :param start: Datetime of start
         :param end: Datetime of end
@@ -71,6 +54,15 @@ class StockPuller:
     
     @staticmethod
     def get_stock_plt_figure(df: pd.DataFrame, plot_type: str = "Adj Close") -> plt.Figure:
+        """
+        Generate a plt figure from a pandas dataframe, based on a plot type which is one of OHLCVT
+
+        CURRENTLY SUPPORTING ONLY Adj Close
+
+        :param df: Pandas dataframe of a stock
+        :param plot_type: Plot type - one of OHLCVT
+        :returns: Plt figure (sv)
+        """
         # Create a new figure and axis object
         fig, ax = plt.subplots(figsize=(10, 10))
         
@@ -86,13 +78,5 @@ class StockPuller:
         # Plot the grid lines
         ax.grid(which="major", color='k', linestyle='-.', linewidth=0.5)
         
+        print(type(fig))
         return fig
-
-def main():
-    stocks = StockPuller.get_stock(ticker="AMZN", interval="30m")
-    print(stocks)
-    fig = StockPuller.get_stock_plt_figure(df=stocks)
-
-
-if __name__ == "__main__":
-    main()

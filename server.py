@@ -1,14 +1,15 @@
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
-import server_protocol as sp
-from server_protocol import logger
-import database_models as db_m
-from database import (db_base_userbase, db_engine_userbase, db_session_userbase,
+
+import utils.server_protocol as sp
+from utils.server_protocol import logger
+import data.database_models as db_m
+from data.database import (db_base_userbase, db_engine_userbase, db_session_userbase,
                       db_engine_users_stocks, db_metadata_users_stocks,
                       db_engine_stocksbase, db_metadata_stocksbase)
 
 from typing import Generator
-import send_email
+import emails.send_email as send_email
 # for typehints
 from sqlalchemy.orm import Session
 from uuid import UUID

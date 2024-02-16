@@ -1,9 +1,12 @@
 from enum import Enum
 from hashlib import sha256
 from sys import stdout
-from validate_email import validate_email
-import logger_script 
 import os
+
+from validate_email import validate_email
+
+import utils.logger_script as logger_script 
+
 
 logger = logger_script.instantiate_logger()
 

@@ -1,6 +1,6 @@
 import flet as ft
 
-import gui.gui_protocol as gp
+import gui.utils.gui_protocol as gp
 
 def init_navigation_bar(page):
     navigation_bar = ft.AppBar(

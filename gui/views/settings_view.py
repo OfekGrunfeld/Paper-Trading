@@ -1,5 +1,5 @@
 import flet as ft
-import gui.gui_protocol as gp
+import gui.utils.gui_protocol as gp
 from gui.router import Router
 from typing import Union
 

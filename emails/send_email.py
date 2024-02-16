@@ -3,7 +3,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
 from enum import Enum
-from server_protocol import is_valid_email_external, Constants, logger
+from utils.server_protocol import is_valid_email_external, Constants, logger
 
 # class to organise different message types
 class Message_Types(Enum):

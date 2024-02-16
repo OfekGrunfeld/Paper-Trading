@@ -1,9 +1,8 @@
 import flet as ft
 from gui.routes import router
 from gui.user_controls.app_bar import init_navigation_bar
-import gui.gui_protocol as gp
+import gui.utils.gui_protocol as gp
 from typing import Union
-
 
 class App:
     def __init__(self):
