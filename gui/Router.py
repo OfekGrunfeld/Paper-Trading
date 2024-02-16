@@ -41,16 +41,3 @@ class Router:
         self.body.content = self.routes[_page](self)
         self.body.update()
 
-    """
-    No clue what this was for
-    
-    #def set_data(self, key, value):
-    #    self.data[key] = value
-
-    #def get_data(self, key):
-    #    return self.data.get(key)
-
-    #def get_query(self, key):
-    #    return self.data.get(key)
-    """
-

@@ -19,6 +19,7 @@ def create_database_url(database_name: str) -> str:
     return database_url
 
 default_connect_args = {"check_same_thread": False}
+
 # create engine for userbase
 db_engine_userbase = create_engine(
     create_database_url("Userbase"), connect_args=default_connect_args

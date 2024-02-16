@@ -1,2 +1,2 @@
-__all__ = ["routes", "router", "gui_protocol", "views", "utils"]
+__all__ = ["routes", "router", "views", "utils"]
 from . import *

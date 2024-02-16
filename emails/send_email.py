@@ -1,8 +1,9 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import os
 from enum import Enum
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import smtplib
+
 from utils.server_protocol import is_valid_email_external, Constants, logger
 
 # class to organise different message types
@@ -34,7 +35,7 @@ def create_message(message_title: str, message_type: str) -> MIMEMultipart:
   
   # get absoulte path of email message
   script_dir = os.path.dirname(__file__)
-  relative_path = fr"emails\{message_type}\{message_type}"
+  relative_path = fr"\{message_type}\{message_type}"
   absolute_path = os.path.join(script_dir, relative_path)
 
   # get email message

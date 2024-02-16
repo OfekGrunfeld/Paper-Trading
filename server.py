@@ -24,6 +24,8 @@ papertrading_app = FastAPI()
 db_base_userbase.metadata.create_all(bind=db_engine_userbase)
 # Create Stocksbase
 db_metadata_stocksbase.create_all(db_engine_stocksbase)
+#create users stocks
+db_metadata_users_stocks.create_all(db_engine_users_stocks)
 
 # Get database with generator function
 def get_db_userbase() -> Generator[Session, any, None]:

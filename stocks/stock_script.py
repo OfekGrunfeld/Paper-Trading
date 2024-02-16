@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 from matplotlib import use as matplotlib_use
 
 from utils.server_protocol import logger
-import utils.server_protocol as sp
 
 
 matplotlib_use("svg")

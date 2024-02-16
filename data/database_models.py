@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, String, Table, Integer
+from sqlalchemy import Column, String, Table, Integer, JSON
 from sqlalchemy.types import TypeDecorator, CHAR
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -64,21 +64,20 @@ class Userbase(db_base_userbase):
         except Exception as error:
             return f"Failed creating string: {error}"
 
-# Not completed
-class Users_Stocks():
+        
+@staticmethod
+def generate_user_stocks_table_by_id(id: GUID):
     """
-    Users Stocks database
-    ID: guid | ???
+    Generate a table of a user to store stocks in
+    :param id: A user's GUID
     """
-    __tablename__ = "Users_Stocks"
-
-    id = Column(GUID(), primary_key=True, default=uuid.uuid4, unique=True)
-
-    def __str__(self) -> str:
-        try:
-            return None
-        except Exception as error:
-            return f"Failed creating string: {error}"
+    # NOT COMPLETE - ADD VALIDATION FOR STOCKS TICKERS
+    new_table = Table(
+        GUID,
+        db_metadata_users_stocks,
+        Column("test", JSON, nullable=True)
+    )
+    new_table.create(db_engine_stocksbase)
 
 @staticmethod
 def generate_stock_table_for_stocksbase_by_ticker(ticker: str):
@@ -99,7 +98,8 @@ def generate_stock_table_for_stocksbase_by_ticker(ticker: str):
         Column("ticker", String, default=ticker, primary_key=True)
     )
     new_table.create(db_engine_stocksbase)
-        
+
+"""
 AAPL = Table(
     "AAPL",
     db_metadata_stocksbase,
@@ -115,4 +115,4 @@ AMZN = Table(
     db_metadata_stocksbase,
     Column("ticker", String, default="AAPL", primary_key=True),
 )
-
+"""
