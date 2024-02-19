@@ -188,4 +188,7 @@ def run_app():
 
 if __name__ == "__main__":
     run_app()
+    # db_m.generate_user_stocks_table_by_id("10fae810-45d9-415f-909b-2839457330e3")
+    #db_m.add_stock_to_users_stocks_table("10fae810-45d9-415f-909b-2839457330e3", {"timestamp": 1, "ticker": "aapl", "action": "buy", "amount": 56.6, "price": 135.7})
+    # db_m.add_stock_to_users_stocks_table("10fae810-45d9-415f-909b-2839457330e3", {"timestamp": 2, "ticker": "banana", "action": "sell", "amount": 5425.6, "price": 12.7})
 

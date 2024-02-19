@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from data.database import (db_base_userbase,
                            db_metadata_users_stocks, db_engine_stocksbase, db_metadata_stocksbase, 
-                           stocksbase_name, 
+                           stocksbase_name, users_stocks_name,
                            db_sessionmaker_userbase, db_sessionmaker_users_stocks, db_engine_users_stocks)
 from utils.server_protocol import logger
 
@@ -74,17 +74,24 @@ def add_stock_to_users_stocks_table(id: str, stock_data: dict):
     if users_stocks_table is None:
         logger.error(f"Could not add user's stocks (id:{id}) table ")
     try:
-        insert(users_stocks_table).values(stock_data)
-        db: Session = get_db_users_stocks()
+        # Create insert statement for the user stock's data
+        stmt = insert(users_stocks_table).values(stock_data)
+        # Get the database, execute and commit
+        db: Session = next(get_db_users_stocks())
+        db.execute(stmt)
         db.commit()
+        db.close()
     except Exception as error:
         logger.error(f"Could not add user's stock(s) data to database")
-    logger.info(f"Done adding stock data to user {id}'s table")
+        db.rollback()
+        logger.debug("Rolled back user's stocks database")
+        return
+    logger.debug(f"Done adding stock data to user {id}'s table")
 
 @staticmethod
 def get_users_stocks_table_by_name(name: str) -> Union[Table, None]:
     try:
-        users_stocks_table = db_metadata_users_stocks.tables[stocksbase_name]
+        users_stocks_table = db_metadata_users_stocks.tables[name]
         return users_stocks_table
     except Exception as error:
         logger.error(f"Could not find table {name} in user's stocks database: {error}")
