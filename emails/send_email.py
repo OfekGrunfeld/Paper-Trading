@@ -34,8 +34,8 @@ def create_message(message_title: str, message_type: str) -> MIMEMultipart:
   message["From"] = Constants.SERVER_EMAIL.value
   
   # get absoulte path of email message
-  script_dir = os.path.dirname("send_email")
-  relative_path = fr"\{message_type}\{message_type}"
+  script_dir = os.path.dirname(__file__)
+  relative_path = f"{message_type}\\{message_type}"
   absolute_path = os.path.join(script_dir, relative_path)
 
   # get email message

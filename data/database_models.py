@@ -32,7 +32,6 @@ class Userbase(db_base_userbase):
         except Exception as error:
             return f"Failed creating string: {error}"
     
-
 @staticmethod
 def generate_user_stocks_table_by_id(id: str):
     """
@@ -49,8 +48,18 @@ def generate_user_stocks_table_by_id(id: str):
         Column("price", Float, nullable=False),
         extend_existing=True
     )
-    new_table.create(db_engine_users_stocks)
-    print(db_metadata_users_stocks.tables)
+    logger.debug(f"Adding table for user {id}")
+    try: 
+        new_table.create(db_engine_users_stocks)
+        if id in db_metadata_users_stocks.tables:
+            logger.debug(f"Successfully added table to user's stocks database{id}")
+        else:
+            logger.error(f"Failed adding table to user's stocks database{id}")
+    except Exception as error:
+        logger.error(f"Error raised while adding table {id} to user's stocks database: {error}")
+    
+        
+    
 
 @staticmethod
 def add_stock_to_users_stocks_table(id: str, stock_data: dict):
@@ -122,21 +131,3 @@ def get_db_users_stocks() -> Generator[Session, any, None]:
         logger.critical(f"ERROR IN GETTING USER'S STOCKS DATABASE: {error}")
     finally:
         db.close()
-
-"""
-AAPL = Table(
-    "AAPL",
-    db_metadata_stocksbase,
-    Column("ticker", String, default="AAPL", primary_key=True),
-)
-BA = Table(
-    "BA",
-    db_metadata_stocksbase,
-    Column("ticker", String, default="BA", primary_key=True),
-)
-AMZN = Table(
-    "AMZN",
-    db_metadata_stocksbase,
-    Column("ticker", String, default="AAPL", primary_key=True),
-)
-"""
