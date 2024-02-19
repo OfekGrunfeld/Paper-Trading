@@ -1,11 +1,14 @@
 from enum import Enum
 from hashlib import sha256
 from sys import stdout
-import os
+from typing import Generator
+
+from sqlalchemy.orm import Session
 
 from validate_email import validate_email
 
 import utils.logger_script as logger_script 
+from data.database import db_session_maker_userbase, db_session_maker_users_stocks
 
 
 logger = logger_script.instantiate_logger()
@@ -18,8 +21,7 @@ class Constants(Enum):
     SERVER_PASSWORD = "MyServer123"
     SMTP_SERVER_URL = "smtp-mail.outlook.com"
 
-    root_path = os.path.dirname(os.path.realpath(__file__))
-    stock_tickers_location = root_path + r"\stocks\tickers.txt"
+    # root_path = os.path.dirname(os.path.realpath(__file__))
 
 def encode_string(string: str) -> str:
     """
@@ -68,3 +70,22 @@ def is_valid_email_external(email_adress: str):
   except Exception as error:
     print("Error in validating email")
     return False
+  
+# Get database with generator function
+def get_db_userbase() -> Generator[Session, any, None]:
+    try:
+        db = db_session_maker_userbase()
+        yield db
+    except Exception as error:
+        logger.critical(f"ERROR IN GETTING USERBASE DATABASE: {error}")
+    finally:
+        db.close()
+
+def get_db_users_stock() -> Generator[Session, any, None]:
+    try:
+        db = db_session_maker_users_stocks()
+        yield db
+    except Exception as error:
+        logger.critical(f"ERROR IN GETTING USER'S STOCKS DATABASE: {error}")
+    finally:
+        db.close()

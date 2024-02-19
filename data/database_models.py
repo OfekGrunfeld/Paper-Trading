@@ -3,10 +3,13 @@ import uuid
 from sqlalchemy import Column, String, Table, Integer, JSON
 from sqlalchemy.types import TypeDecorator, CHAR
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Session
 
 from server import db_base_userbase
-from data.database import (db_metadata_users_stocks, db_metadata_stocksbase, db_engine_stocksbase)
-from utils.server_protocol import logger
+from data.database import (db_metadata_users_stocks, db_metadata_stocksbase, db_engine_stocksbase,
+                           stocksbase_name)
+from utils.server_protocol import logger, get_db_users_stock
+
 
 # "quick fix for uuid"
 # i have no clue how this works 
@@ -75,9 +78,32 @@ def generate_user_stocks_table_by_id(id: GUID):
     new_table = Table(
         GUID,
         db_metadata_users_stocks,
-        Column("test", JSON, nullable=True)
+        Column("timestamp", int, primary_key=True, unique=True, nullable=False),
+        Column("ticker", String, nullable=False),
+        Column("action", String, nullable=False),
+        Column("amount", float, nullable=False),
+        Column("price", float, nullable=False),
     )
     new_table.create(db_engine_stocksbase)
+
+@staticmethod
+def add_stock_to_users_stocks_table(stock_data: dict):
+    """
+    
+    """
+    global db_metadata_users_stocks
+    table = get_users_stocks_table_by_name(id)
+    db_users_stocks: Session = get_db_users_stock()
+
+    # HERE QUERY THE TABLE AND ADD THE STOCK DATA
+    
+    
+    # new_table.create(db_engine_stocksbase)
+
+@staticmethod
+def get_users_stocks_table_by_name(name: str) -> Table:
+    users_stocks_table = db_metadata_users_stocks.tables[stocksbase_name]
+    return users_stocks_table
 
 @staticmethod
 def generate_stock_table_for_stocksbase_by_ticker(ticker: str):

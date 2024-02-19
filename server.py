@@ -4,11 +4,10 @@ from fastapi import FastAPI, Depends, HTTPException
 import utils.server_protocol as sp
 from utils.server_protocol import logger
 import data.database_models as db_m
-from data.database import (db_base_userbase, db_engine_userbase, db_session_userbase,
+from data.database import (db_base_userbase, db_engine_userbase,
                       db_engine_users_stocks, db_metadata_users_stocks,
                       db_engine_stocksbase, db_metadata_stocksbase)
 
-from typing import Generator
 import emails.send_email as send_email
 # for typehints
 from sqlalchemy.orm import Session
@@ -26,16 +25,6 @@ db_base_userbase.metadata.create_all(bind=db_engine_userbase)
 db_metadata_stocksbase.create_all(db_engine_stocksbase)
 #create users stocks
 db_metadata_users_stocks.create_all(db_engine_users_stocks)
-
-# Get database with generator function
-def get_db_userbase() -> Generator[Session, any, None]:
-    try:
-        db = db_session_userbase()
-        yield db
-    except Exception as error:
-        logger.critical(f"ERROR IN GETTING USERBASE DATABASE: {error}")
-    finally:
-        db.close()
 
 def does_username_and_password_match(user_model, username: str, password: str):
     """
@@ -59,7 +48,7 @@ def root():
     return {"message": "Hello World"}
 
 @papertrading_app.get("/get_user_by_username")
-def get_user_by_username(username: str, db: Session = Depends(get_db_userbase)):
+def get_user_by_username(username: str, db: Session = Depends(sp.get_db_userbase)):
     try:
         # get user with id from database
         user_model = db.query(db_m.Userbase).filter(db_m.Userbase.username == username).first()
@@ -77,7 +66,7 @@ def get_user_by_username(username: str, db: Session = Depends(get_db_userbase)):
 
 # FINAL (for now)
 @papertrading_app.get("/database")
-def get_whole_database(db: Session = Depends(get_db_userbase)):
+def get_whole_database(db: Session = Depends(sp.get_db_userbase)):
     try:
         return db.query(db_m.Userbase).all()
     except Exception as error:
@@ -85,7 +74,7 @@ def get_whole_database(db: Session = Depends(get_db_userbase)):
 
 # working fine
 @papertrading_app.post("/sign_up")
-def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db_userbase)) -> dict[str, str | bool]:
+def sign_up(email: str, username: str, password: str, db: Session = Depends(sp.get_db_userbase)) -> dict[str, str | bool]:
     return_dict = {"sign_up_success": False, "error": ""}
     try: 
         user_model = db_m.Userbase()
@@ -134,7 +123,7 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
 
 # currently deleted with username and not email / both
 @papertrading_app.delete("/delete_user")
-def delete_user(user_id: UUID, username: str, password: str, db: Session = Depends(get_db_userbase)):
+def delete_user(user_id: UUID, username: str, password: str, db: Session = Depends(sp.get_db_userbase)):
     try: 
         # get user with id from database
         user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
@@ -158,7 +147,7 @@ def delete_user(user_id: UUID, username: str, password: str, db: Session = Depen
 
 # working fine
 @papertrading_app.put("/update_user")
-def update_user(user_id: UUID, username: str, password: str, new_username, new_password: str, db: Session = Depends(get_db_userbase)):
+def update_user(user_id: UUID, username: str, password: str, new_username, new_password: str, db: Session = Depends(sp.get_db_userbase)):
     try: 
         # don't update user if there is nothing to change
         if new_username == username and new_password == password:

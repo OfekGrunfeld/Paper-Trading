@@ -23,8 +23,8 @@ default_connect_args = {"check_same_thread": False}
 # create engine for userbase
 db_engine_userbase = create_engine(
     create_database_url("Userbase"), connect_args=default_connect_args
-)  
-db_session_userbase = sessionmaker(autocommit=False, autoflush=False, bind=db_engine_userbase)
+) 
+db_session_maker_userbase = sessionmaker(autocommit=False, autoflush=False, bind=db_engine_userbase)
 db_base_userbase = declarative_base()
 
 
@@ -32,10 +32,12 @@ db_base_userbase = declarative_base()
 db_engine_users_stocks = create_engine(
     create_database_url("Users_Stocks"), connect_args=default_connect_args
 ) 
+db_session_maker_users_stocks = sessionmaker(autocommit=False, autoflush=False, bind=db_engine_users_stocks)
 db_metadata_users_stocks = MetaData()
 
 # create engine for stocksbase
+stocksbase_name = "Stocksbase"
 db_engine_stocksbase = create_engine(
-    create_database_url("Stocksbase"), connect_args=default_connect_args
+    create_database_url(stocksbase_name), connect_args=default_connect_args
 )  
 db_metadata_stocksbase = MetaData()
