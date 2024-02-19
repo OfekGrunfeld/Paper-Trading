@@ -43,14 +43,13 @@ def generate_user_stocks_table_by_id(id: str):
         id,
         db_metadata_users_stocks,
         Column("timestamp", Integer, primary_key=True, unique=True, nullable=False),
-        Column("ticker", String),
-        Column("action", String),
-        Column("amount", Float),
-        Column("price", Float),
+        Column("ticker", String, nullable=False),
+        Column("action", String, nullable=False),
+        Column("amount", Float, nullable=False),
+        Column("price", Float, nullable=False),
         extend_existing=True
     )
     new_table.create(db_engine_users_stocks)
-    # db_metadata_users_stocks.create_all(db_engine_users_stocks)
     print(db_metadata_users_stocks.tables)
 
 @staticmethod
