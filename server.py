@@ -22,7 +22,7 @@ papertrading_app = FastAPI()
 # Create database 
 db_base_userbase.metadata.create_all(bind=db_engine_userbase)
 # Create Stocksbase
-db_metadata_stocksbase.create_all(db_engine_stocksbase)
+# db_metadata_stocksbase.create_all(db_engine_stocksbase)
 #create users stocks
 db_metadata_users_stocks.create_all(db_engine_users_stocks)
 
@@ -48,7 +48,7 @@ def root():
     return {"message": "Hello World"}
 
 @papertrading_app.get("/get_user_by_username")
-def get_user_by_username(username: str, db: Session = Depends(sp.get_db_userbase)):
+def get_user_by_username(username: str, db: Session = Depends(db_m.get_db_userbase)):
     try:
         # get user with id from database
         user_model = db.query(db_m.Userbase).filter(db_m.Userbase.username == username).first()
@@ -66,7 +66,7 @@ def get_user_by_username(username: str, db: Session = Depends(sp.get_db_userbase
 
 # FINAL (for now)
 @papertrading_app.get("/database")
-def get_whole_database(db: Session = Depends(sp.get_db_userbase)):
+def get_whole_database(db: Session = Depends(db_m.get_db_userbase)):
     try:
         return db.query(db_m.Userbase).all()
     except Exception as error:
@@ -74,7 +74,7 @@ def get_whole_database(db: Session = Depends(sp.get_db_userbase)):
 
 # working fine
 @papertrading_app.post("/sign_up")
-def sign_up(email: str, username: str, password: str, db: Session = Depends(sp.get_db_userbase)) -> dict[str, str | bool]:
+def sign_up(email: str, username: str, password: str, db: Session = Depends(db_m.get_db_userbase)) -> dict[str, str | bool]:
     return_dict = {"sign_up_success": False, "error": ""}
     try: 
         user_model = db_m.Userbase()
@@ -123,7 +123,7 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(sp.g
 
 # currently deleted with username and not email / both
 @papertrading_app.delete("/delete_user")
-def delete_user(user_id: UUID, username: str, password: str, db: Session = Depends(sp.get_db_userbase)):
+def delete_user(user_id: UUID, username: str, password: str, db: Session = Depends(db_m.get_db_userbase)):
     try: 
         # get user with id from database
         user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
@@ -147,7 +147,7 @@ def delete_user(user_id: UUID, username: str, password: str, db: Session = Depen
 
 # working fine
 @papertrading_app.put("/update_user")
-def update_user(user_id: UUID, username: str, password: str, new_username, new_password: str, db: Session = Depends(sp.get_db_userbase)):
+def update_user(user_id: UUID, username: str, password: str, new_username, new_password: str, db: Session = Depends(db_m.get_db_userbase)):
     try: 
         # don't update user if there is nothing to change
         if new_username == username and new_password == password:
@@ -190,3 +190,4 @@ def run_app():
 
 if __name__ == "__main__":
     run_app()
+
