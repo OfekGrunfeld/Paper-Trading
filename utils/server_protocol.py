@@ -17,12 +17,13 @@ def get_db_users_stock():
    return get_db_users_stock()
    
 class Constants(Enum):
+    load_dotenv()
     HOST_IP = "127.0.0.1"
     HOST_PORT = 5555
 
-    SERVER_EMAIL = "ofekserver@outlook.com"
-    SERVER_PASSWORD = "MyServer123"
-    SMTP_SERVER_URL = "smtp-mail.outlook.com"
+    SERVER_EMAIL = getenv("SERVER_EMAIL")
+    SERVER_PASSWORD = getenv("SERVER_PASSWORD")
+    SMTP_SERVER_URL = getenv("SMTP_SERVER_URL")
 
     # root_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -73,12 +74,3 @@ def is_valid_email_external(email_adress: str):
   except Exception as error:
     print("Error in validating email")
     return False
-
-
-def print_env_file():
-    load_dotenv()
-    data = getenv("SERVER_EMAIL")
-    data2 = getenv("SERVER_PASSWORD")
-    data3 = getenv("SMTP_SERVER_URL")
-
-    print(f"{data}\t{data2}\t{data3}")

@@ -143,6 +143,25 @@ def delete_user(user_id: str, username: str, password: str, db: Session = Depend
     except Exception as error:
         return f"Failed to delete user {error}"
 
+@papertrading_app.delete("/force_delete_user")
+def force_delete_user(user_id: str, db: Session = Depends(db_m.get_db_userbase)):
+    try: 
+        # get user with id from database
+        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
+        
+        # check if there is no such user
+        if user_model is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"ID: {user_id} does not exist"
+            )
+        
+        # delete user
+        db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).delete()
+        db.commit()
+        return "Deleted user successfully"
+    except Exception as error:
+        return f"Failed to delete user {error}"
 # working fine
 @papertrading_app.put("/update_user")
 def update_user(user_id: str, username: str, password: str, new_username, new_password: str, db: Session = Depends(db_m.get_db_userbase)):
@@ -187,5 +206,4 @@ def run_app():
     uvicorn.run(papertrading_app,host=HOST_IP, port=HOST_PORT)
 
 if __name__ == "__main__":
-    #run_app()
-    sp.print_env_file()
+    run_app()
