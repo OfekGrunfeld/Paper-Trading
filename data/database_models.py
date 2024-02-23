@@ -1,52 +1,18 @@
 import uuid
+from typing import Union, Generator
 
-from sqlalchemy import Column, String, Table, Integer, JSON
-from sqlalchemy.types import TypeDecorator, CHAR
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import insert, Column, String, Table, Integer, JSON, Float
 from sqlalchemy.orm import Session
 
-from data.database import (db_metadata_users_stocks, db_metadata_stocksbase, db_engine_stocksbase,
-                           stocksbase_name, db_base_userbase, get_db_users_stock)
-from utils.logger_script import logger
+from data.database import (db_base_userbase,
+                           db_metadata_users_stocks, db_engine_stocksbase, db_metadata_stocksbase, 
+                           stocksbase_name, users_stocks_name,
+                           db_sessionmaker_userbase, db_sessionmaker_users_stocks, db_engine_users_stocks)
+from utils.server_protocol import logger
 
+def generate_uuid():
+    return str(uuid.uuid4())
 
-# "quick fix for uuid"
-# i have no clue how this works 
-class GUID(TypeDecorator):
-    """
-    Platform-independent GUID type.
-    Uses PostgreSQL's UUID type, otherwise uses
-    CHAR(32), storing as stringified hex values.
-    """
-    impl = CHAR
-    cache_ok = True
-
-    def load_dialect_impl(self, dialect):
-        if dialect.name == 'postgresql':
-            return dialect.type_descriptor(UUID())
-        else:
-            return dialect.type_descriptor(CHAR(32))
-
-    def process_bind_param(self, value, dialect):
-        if value is None:
-            return value
-        elif dialect.name == 'postgresql':
-            return str(value)
-        else:
-            if not isinstance(value, uuid.UUID):
-                return "%.32x" % uuid.UUID(value).int
-            else:
-                # hexstring
-                return "%.32x" % value.int
-
-    def process_result_value(self, value, dialect):
-        if value is None:
-            return value
-        else:
-            if not isinstance(value, uuid.UUID):
-                value = uuid.UUID(value)
-            return value
-        
 class Userbase(db_base_userbase):
     """
     Userbase databse:
@@ -54,7 +20,7 @@ class Userbase(db_base_userbase):
     """
     __tablename__ = "Userbase"
 
-    id = Column(GUID(), primary_key=True, default=uuid.uuid4, unique=True)
+    id = Column(String, primary_key=True, default=generate_uuid, unique=True)
     
     email = Column(String, nullable=False, unique=True)
     username = Column(String, nullable=False, unique=True)
@@ -65,44 +31,72 @@ class Userbase(db_base_userbase):
             return f"id: {self.id}, email: {self.email}, username: {self.username}, password: {self.password}"
         except Exception as error:
             return f"Failed creating string: {error}"
-
-        
+    
 @staticmethod
-def generate_user_stocks_table_by_id(id: GUID):
+def generate_user_stocks_table_by_id(id: str):
     """
     Generate a table of a user to store stocks in
     :param id: A user's GUID
     """
-    # NOT COMPLETE - ADD VALIDATION FOR STOCKS TICKERS
     new_table = Table(
-        GUID,
+        id,
         db_metadata_users_stocks,
-        Column("timestamp", int, primary_key=True, unique=True, nullable=False),
+        Column("timestamp", Integer, primary_key=True, unique=True, nullable=False),
         Column("ticker", String, nullable=False),
         Column("action", String, nullable=False),
-        Column("amount", float, nullable=False),
-        Column("price", float, nullable=False),
+        Column("amount", Float, nullable=False),
+        Column("price", Float, nullable=False),
+        extend_existing=True
     )
-    new_table.create(db_engine_stocksbase)
+    logger.debug(f"Adding table for user {id}")
+    try: 
+        new_table.create(db_engine_users_stocks)
+        if id in db_metadata_users_stocks.tables:
+            logger.debug(f"Successfully added table to user's stocks database{id}")
+        else:
+            logger.error(f"Failed adding table to user's stocks database{id}")
+    except Exception as error:
+        logger.error(f"Error raised while adding table {id} to user's stocks database: {error}")
+    
+        
+    
 
 @staticmethod
-def add_stock_to_users_stocks_table(stock_data: dict):
+def add_stock_to_users_stocks_table(id: str, stock_data: dict):
     """
     
     """
     global db_metadata_users_stocks
-    table = get_users_stocks_table_by_name(id)
-    db_users_stocks: Session = get_db_users_stock()
+    # Get user's stocks table reference from the database
+    users_stocks_table = get_users_stocks_table_by_name(id)
 
-    # HERE QUERY THE TABLE AND ADD THE STOCK DATA
-    
-    
-    # new_table.create(db_engine_stocksbase)
+    # If there was no table found
+    if users_stocks_table is None:
+        logger.error(f"Could not add user's stocks (id:{id}) table ")
+    try:
+        # Create insert statement for the user stock's data
+        stmt = insert(users_stocks_table).values(stock_data)
+        # Get the database, execute and commit
+        db: Session = next(get_db_users_stocks())
+        db.execute(stmt)
+        db.commit()
+        db.close()
+    except Exception as error:
+        logger.error(f"Could not add user's stock(s) data to database")
+        db.rollback()
+        logger.debug("Rolled back user's stocks database")
+        return
+    logger.debug(f"Done adding stock data to user {id}'s table")
 
 @staticmethod
-def get_users_stocks_table_by_name(name: str) -> Table:
-    users_stocks_table = db_metadata_users_stocks.tables[stocksbase_name]
-    return users_stocks_table
+def get_users_stocks_table_by_name(name: str) -> Union[Table, None]:
+    try:
+        users_stocks_table = db_metadata_users_stocks.tables[name]
+        return users_stocks_table
+    except Exception as error:
+        logger.error(f"Could not find table {name} in user's stocks database: {error}")
+        return None
+    
 
 @staticmethod
 def generate_stock_table_for_stocksbase_by_ticker(ticker: str):
@@ -119,25 +113,28 @@ def generate_stock_table_for_stocksbase_by_ticker(ticker: str):
     
     new_table = Table(
         ticker,
-        db_metadata_stocksbase,
+        # db_metadata_stocksbase,
         Column("ticker", String, default=ticker, primary_key=True)
     )
     new_table.create(db_engine_stocksbase)
 
-"""
-AAPL = Table(
-    "AAPL",
-    db_metadata_stocksbase,
-    Column("ticker", String, default="AAPL", primary_key=True),
-)
-BA = Table(
-    "BA",
-    db_metadata_stocksbase,
-    Column("ticker", String, default="BA", primary_key=True),
-)
-AMZN = Table(
-    "AMZN",
-    db_metadata_stocksbase,
-    Column("ticker", String, default="AAPL", primary_key=True),
-)
-"""
+
+  
+# Get database with generator function
+def get_db_userbase() -> Generator[Session, any, None]:
+    try:
+        db = db_sessionmaker_userbase()
+        yield db
+    except Exception as error:
+        logger.critical(f"ERROR IN GETTING USERBASE DATABASE: {error}")
+    finally:
+        db.close()
+
+def get_db_users_stocks() -> Generator[Session, any, None]:
+    try:
+        db = db_sessionmaker_users_stocks()
+        yield db
+    except Exception as error:
+        logger.critical(f"ERROR IN GETTING USER'S STOCKS DATABASE: {error}")
+    finally:
+        db.close()

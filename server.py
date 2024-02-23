@@ -9,9 +9,7 @@ from data.database import (db_base_userbase, db_engine_userbase,
                       db_engine_stocksbase, db_metadata_stocksbase)
 
 import emails.send_email as send_email
-# for typehints
 from sqlalchemy.orm import Session
-from uuid import UUID
 
 # CONSTANTS
 HOST_IP = sp.Constants.HOST_IP.value
@@ -31,9 +29,9 @@ def does_username_and_password_match(user_model, username: str, password: str):
     Checks if the username and password entered match the ones in the database
     
     Parameters:
-        user_model (db_m.Userbase): An existing user in the database
-        username (str): username
-        password (str): password
+        :param user_model: An existing user in the database
+        :param username: username
+        :param password: password
     
     Returns:
         True: if the encoded username matches the user's username in the database and the encoded password matches the user's password in the database
@@ -48,7 +46,7 @@ def root():
     return {"message": "Hello World"}
 
 @papertrading_app.get("/get_user_by_username")
-def get_user_by_username(username: str, db: Session = Depends(sp.get_db_userbase)):
+def get_user_by_username(username: str, db: Session = Depends(db_m.get_db_userbase)):
     try:
         # get user with id from database
         user_model = db.query(db_m.Userbase).filter(db_m.Userbase.username == username).first()
@@ -66,7 +64,7 @@ def get_user_by_username(username: str, db: Session = Depends(sp.get_db_userbase
 
 # FINAL (for now)
 @papertrading_app.get("/database")
-def get_whole_database(db: Session = Depends(sp.get_db_userbase)):
+def get_whole_database(db: Session = Depends(db_m.get_db_userbase)):
     try:
         return db.query(db_m.Userbase).all()
     except Exception as error:
@@ -74,7 +72,7 @@ def get_whole_database(db: Session = Depends(sp.get_db_userbase)):
 
 # working fine
 @papertrading_app.post("/sign_up")
-def sign_up(email: str, username: str, password: str, db: Session = Depends(sp.get_db_userbase)) -> dict[str, str | bool]:
+def sign_up(email: str, username: str, password: str, db: Session = Depends(db_m.get_db_userbase)) -> dict[str, str | bool]:
     return_dict = {"sign_up_success": False, "error": ""}
     try: 
         user_model = db_m.Userbase()
@@ -123,7 +121,7 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(sp.g
 
 # currently deleted with username and not email / both
 @papertrading_app.delete("/delete_user")
-def delete_user(user_id: UUID, username: str, password: str, db: Session = Depends(sp.get_db_userbase)):
+def delete_user(user_id: str, username: str, password: str, db: Session = Depends(db_m.get_db_userbase)):
     try: 
         # get user with id from database
         user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
@@ -147,7 +145,7 @@ def delete_user(user_id: UUID, username: str, password: str, db: Session = Depen
 
 # working fine
 @papertrading_app.put("/update_user")
-def update_user(user_id: UUID, username: str, password: str, new_username, new_password: str, db: Session = Depends(sp.get_db_userbase)):
+def update_user(user_id: str, username: str, password: str, new_username, new_password: str, db: Session = Depends(db_m.get_db_userbase)):
     try: 
         # don't update user if there is nothing to change
         if new_username == username and new_password == password:
