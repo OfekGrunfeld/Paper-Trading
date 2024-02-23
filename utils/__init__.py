@@ -1,1 +1,2 @@
-__all__ = ["logger_script.py", "server_protocol.py", "logger"]
+__all__ = ["logger_script", "server_protocol"]
+from . import *

@@ -6,6 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session
 
 from utils.logger_script import logger
+
 @staticmethod
 def create_database_url(database_name: str) -> str:
     """
@@ -50,7 +51,7 @@ db_metadata_stocksbase = MetaData()
 # Get database with generator function
 def get_db_userbase() -> Generator[Session, any, None]:
     try:
-        db = db_session_maker_userbase()
+        db = db_sessionmaker_userbase()
         yield db
     except Exception as error:
         logger.critical(f"ERROR IN GETTING USERBASE DATABASE: {error}")
@@ -59,7 +60,7 @@ def get_db_userbase() -> Generator[Session, any, None]:
 
 def get_db_users_stock() -> Generator[Session, any, None]:
     try:
-        db = db_session_maker_users_stocks()
+        db = db_sessionmaker_users_stocks()
         yield db
     except Exception as error:
         logger.critical(f"ERROR IN GETTING USER'S STOCKS DATABASE: {error}")
