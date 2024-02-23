@@ -5,10 +5,9 @@ from sqlalchemy.types import TypeDecorator, CHAR
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Session
 
-from server import db_base_userbase
 from data.database import (db_metadata_users_stocks, db_metadata_stocksbase, db_engine_stocksbase,
-                           stocksbase_name)
-from utils.server_protocol import logger, get_db_users_stock
+                           stocksbase_name, db_base_userbase, get_db_users_stock)
+from utils.logger_script import logger
 
 
 # "quick fix for uuid"
@@ -115,7 +114,7 @@ def generate_stock_table_for_stocksbase_by_ticker(ticker: str):
     possible_tickers = []
     possible_tickers.append(ticker)
     if ticker not in possible_tickers:
-        logger.warning("Specified ticker is not valid")
+        # logger.warning("Specified ticker is not valid")
         return 
     
     new_table = Table(

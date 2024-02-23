@@ -32,7 +32,8 @@ class ColoredFormatter(logging.Formatter):
             logging.INFO: self.RESET,
             logging.WARNING: self.BROWN,
             logging.ERROR: self.RED,
-            logging.CRITICAL: self.LIGHT_RED
+            logging.CRITICAL: self.LIGHT_RED,
+            logging.exception: self.LIGHT_RED
             }
         super(ColoredFormatter, self).__init__(*args, **kwargs)
 
@@ -65,7 +66,7 @@ class ColoredFormatter(logging.Formatter):
 @staticmethod
 def instantiate_logger() -> logging.Logger:
     """
-    Create a beautiful colored logger
+    Create a beautiful coloured logger
     
     :returns: logger - logging.Logger instance
     """
@@ -88,5 +89,5 @@ def instantiate_logger() -> logging.Logger:
     except Exception as error:
         print(f"Error in instantiating logger: {error}")
         return None
-    
 
+logger = instantiate_logger()

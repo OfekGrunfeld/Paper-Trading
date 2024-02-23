@@ -33,19 +33,20 @@ class StockPuller:
         # if there was no param specified, set default
         if ticker is None:
             ticker = "AAPL"
-            print(f"No ticker specified defaulting to {ticker}")
+            logger.warning(f"No ticker specified defaulting to {ticker}")
         if start is None:
             start = Constants.default_start_time.value
-            print(f"No start date specified defaulting to {start}")
+            logger.warning(f"No start date specified defaulting to {start}")
         if end is None:
             end = Constants.default_end_time.value
-            print(f"No end date specified defaulting to {end}")
+            logger.warning(f"No end date specified defaulting to {end}")
         if interval is None:
             interval = "30m"
-            print(f"No interval specified defaulting to {interval}")
+            logger.warning(f"No interval specified defaulting to {interval}")
 
         try:
             data = yf.download(tickers=[ticker],start=start,end=end,interval=interval)
+            logger.info(f"Downloaded {ticker} data successfully")
         except Exception as error:
             logger.exception(f"Error getting stocks, error: \n{error}")
         finally:
@@ -62,20 +63,24 @@ class StockPuller:
         :param plot_type: Plot type - one of OHLCVT
         :returns: Plt figure (sv)
         """
-        # Create a new figure and axis object
-        fig, ax = plt.subplots(figsize=(10, 10))
-        
-        # Plot the data on the axis
-        ((df[plot_type].pct_change()+1).cumprod()).plot(ax=ax)
-        ax.legend()
-        ax.set_title(plot_type, fontsize=16)
+        try:
+            # Create a new figure and axis object
+            fig, ax = plt.subplots(figsize=(10, 10))
+            
+            # Plot the data on the axis
+            ((df[plot_type].pct_change()+1).cumprod()).plot(ax=ax)
+            ax.legend()
+            ax.set_title(plot_type, fontsize=16)
 
-        # Define the labels
-        ax.set_ylabel(f"{plot_type} value", fontsize=14)
-        ax.set_xlabel('Time', fontsize=14)
+            # Define the labels
+            ax.set_ylabel(f"{plot_type} value", fontsize=14)
+            ax.set_xlabel('Time', fontsize=14)
 
-        # Plot the grid lines
-        ax.grid(which="major", color='k', linestyle='-.', linewidth=0.5)
-        
-        print(type(fig))
+            # Plot the grid lines
+            ax.grid(which="major", color='k', linestyle='-.', linewidth=0.5)
+            
+        except Exception as error:
+            logger.exception(f"Exception in getting plt stock figure: {error}")
+            fig = plt.figure()
+            return None
         return fig

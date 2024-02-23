@@ -1,18 +1,21 @@
 from enum import Enum
 from hashlib import sha256
 from sys import stdout
-from typing import Generator
+from os import getenv
 
-from sqlalchemy.orm import Session
 
 from validate_email import validate_email
+from dotenv import load_dotenv
 
-import utils.logger_script as logger_script 
-from data.database import db_session_maker_userbase, db_session_maker_users_stocks
+from utils.logger_script import logger
+from data.database import get_db_userbase, get_db_users_stock
 
+def get_db_userbase():
+   return get_db_userbase()
 
-logger = logger_script.instantiate_logger()
-
+def get_db_users_stock():
+   return get_db_users_stock()
+   
 class Constants(Enum):
     HOST_IP = "127.0.0.1"
     HOST_PORT = 5555
@@ -70,22 +73,12 @@ def is_valid_email_external(email_adress: str):
   except Exception as error:
     print("Error in validating email")
     return False
-  
-# Get database with generator function
-def get_db_userbase() -> Generator[Session, any, None]:
-    try:
-        db = db_session_maker_userbase()
-        yield db
-    except Exception as error:
-        logger.critical(f"ERROR IN GETTING USERBASE DATABASE: {error}")
-    finally:
-        db.close()
 
-def get_db_users_stock() -> Generator[Session, any, None]:
-    try:
-        db = db_session_maker_users_stocks()
-        yield db
-    except Exception as error:
-        logger.critical(f"ERROR IN GETTING USER'S STOCKS DATABASE: {error}")
-    finally:
-        db.close()
+
+def print_env_file():
+    load_dotenv()
+    data = getenv("SERVER_EMAIL")
+    data2 = getenv("SERVER_PASSWORD")
+    data3 = getenv("SMTP_SERVER_URL")
+
+    print(f"{data}\t{data2}\t{data3}")

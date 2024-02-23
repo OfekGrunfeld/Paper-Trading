@@ -22,9 +22,9 @@ papertrading_app = FastAPI()
 # Create database 
 db_base_userbase.metadata.create_all(bind=db_engine_userbase)
 # Create Stocksbase
-db_metadata_stocksbase.create_all(db_engine_stocksbase)
+db_metadata_stocksbase.create_all(bind=db_engine_stocksbase)
 #create users stocks
-db_metadata_users_stocks.create_all(db_engine_users_stocks)
+db_metadata_users_stocks.create_all(bind=db_engine_users_stocks)
 
 def does_username_and_password_match(user_model, username: str, password: str):
     """
@@ -189,4 +189,5 @@ def run_app():
     uvicorn.run(papertrading_app,host=HOST_IP, port=HOST_PORT)
 
 if __name__ == "__main__":
-    run_app()
+    #run_app()
+    sp.print_env_file()
