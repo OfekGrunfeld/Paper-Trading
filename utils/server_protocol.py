@@ -3,7 +3,6 @@ from hashlib import sha256
 from sys import stdout
 from os import getenv
 
-
 from validate_email import validate_email
 from dotenv import load_dotenv
 

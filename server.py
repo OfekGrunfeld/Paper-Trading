@@ -2,12 +2,11 @@ import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
 
 import utils.server_protocol as sp
-from utils.server_protocol import logger
+from utils.logger_script import logger
 import data.database_models as db_m
 from data.database import (db_base_userbase, db_engine_userbase,
                       db_engine_users_stocks, db_metadata_users_stocks,
                       db_engine_stocksbase, db_metadata_stocksbase)
-
 import emails.send_email as send_email
 from sqlalchemy.orm import Session
 

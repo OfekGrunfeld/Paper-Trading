@@ -1,6 +1,7 @@
-from typing import Callable, Any
-import flet as ft
 from enum import Enum
+
+import flet as ft
+
 
 class DataStrategy(Enum):
     QUERY = 0

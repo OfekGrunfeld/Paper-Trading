@@ -1,5 +1,7 @@
 from typing import Union
+
 import flet as ft
+
 from gui.router import Router
 import gui.utils.gui_protocol as gp
 
