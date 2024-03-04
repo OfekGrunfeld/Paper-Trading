@@ -1,6 +1,7 @@
+from typing import List, Dict, TypedDict
+
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
-
 from sqlalchemy.orm import Session
 
 import utils.server_protocol as sp
@@ -47,7 +48,7 @@ def root():
     return {"message": "Hello World"}
 
 @papertrading_app.get("/get_user_by_username")
-def get_user_by_username(username: str, db: Session = Depends(db_m.get_db_userbase)):
+def get_user_by_username(username: str, db: Session = Depends(db_m.get_db_userbase)) -> List[Dict]:
     try:
         # get user with id from database
         user_model = db.query(db_m.Userbase).filter(db_m.Userbase.username == username).first()
@@ -70,7 +71,7 @@ def get_user_by_username(username: str, db: Session = Depends(db_m.get_db_userba
 
 # FINAL (for now)
 @papertrading_app.get("/database")
-def get_whole_database(db: Session = Depends(db_m.get_db_userbase)):
+def get_whole_database(db: Session = Depends(db_m.get_db_userbase)) -> List[Dict]:
     try:
         return db.query(db_m.Userbase).all()
     except Exception as error:
@@ -79,19 +80,19 @@ def get_whole_database(db: Session = Depends(db_m.get_db_userbase)):
 # working fine
 @papertrading_app.post("/sign_up")
 def sign_up(email: str, username: str, password: str, db: Session = Depends(db_m.get_db_userbase)) -> dict[str, str | bool]:
-    return_dict = {"sign_up_success": False, "error": ""}
     try: 
+        return_dict = sp.Response()
         user_model = db_m.Userbase()
 
         # filter out using email or username that is already being used
         if db.query(db_m.Userbase).filter(db_m.Userbase.email == email).first() is not None:
-            return_dict["error"] = "Failed to sign up. Email associated with existing user"
-            return return_dict
+            return_dict.error = "Failed to sign up. Email associated with existing user"
+            return return_dict.to_dict()
         # save email as string, save username and password encoded sha256 to database
         logger.info("Checking if email exists by SMTP and DNS")
         if not sp.is_valid_email_external(email):
-            return_dict["error"] = "Invalid email address"
-            return return_dict
+            return_dict.error = "Invalid email address"
+            return return_dict.to_dict()
         logger.info(f"Email exists: {email}")
         
         # create user with email, username and password 
@@ -101,34 +102,35 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(db_m
 
         # add user to database
         try:
-            logger.info(f"Adding new user to the database: {user_model}")
+            logger.info(f"Adding new user to the database: {user_model.email}")
             db.add(user_model)
             db.commit()
-            logger.info(f"Added new user to the database: {user_model}")
+            logger.info(f"Added new user to the database: {user_model.email}")
         except Exception as error:
             logger.error(f"Failed adding user to database")
-            return_dict["error"] = "Internal Server Error"
+            return_dict.error = "Internal Server Error"
             raise HTTPException(
                 status_code=500,
                 detail=return_dict
             )
             
-
         # send mail to user
-        flag = send_email.send_email(email, send_email.Message_Types["sign_up"].value)
-        if not return_dict:
+        flag: bool = send_email.send_email(email, send_email.Message_Types["sign_up"].value)
+        if not flag:
             # Unsure weather to return false if email failed to send
             logger.error(f"Failed sending email to user")
-        return_dict["sign_up_success"] = True
-        return return_dict
+        return_dict.success = True
     except Exception as error:
-        return_dict["sign_up_success"] = False
-        return_dict["error"] = "Internal Server Error"
+        return_dict.success = False
+        return_dict.error = "Internal Server Error"
+    finally:
+        return return_dict.to_dict()
 
 # currently deleted with username and not email / both
 @papertrading_app.delete("/delete_user")
 def delete_user(user_id: str, username: str, password: str, db: Session = Depends(db_m.get_db_userbase)):
     try: 
+        return_dict = sp.Response()
         # get user with id from database
         user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
         
@@ -144,14 +146,21 @@ def delete_user(user_id: str, username: str, password: str, db: Session = Depend
             # delete user
             db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).delete()
             db.commit()
-            return "Deleted user successfully"
-        return "username or password do not match"
+            return_dict.message = "Deleted user successfully"
+            return_dict.success = True
+        else:
+            return_dict.message = "Deleted user successfully"
+            return_dict.success = False
     except Exception as error:
-        return f"Failed to delete user {error}"
+        return_dict.message = f"Failed to delete user {error}"
+        return_dict.success = False
+    finally:
+        return return_dict.to_dict()
 
 @papertrading_app.delete("/force_delete_user")
 def force_delete_user(user_id: str, db: Session = Depends(db_m.get_db_userbase)):
     try: 
+        return_dict = sp.Response()
         # get user with id from database
         user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
         
@@ -165,16 +174,25 @@ def force_delete_user(user_id: str, db: Session = Depends(db_m.get_db_userbase))
         # delete user
         db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).delete()
         db.commit()
-        return "Deleted user successfully"
+        # update return dict
+        return_dict.message = "Deleted user successfully"
+        return_dict.success = True
     except Exception as error:
-        return f"Failed to delete user {error}"
+        return_dict.message = ""
+        return_dict.error = f"Failed to delete user {error}"
+        return_dict.success = False
+    finally:
+        return return_dict.to_dict()
 # working fine
 @papertrading_app.put("/update_user")
 def update_user(user_id: str, username: str, password: str, new_username, new_password: str, db: Session = Depends(db_m.get_db_userbase)):
     try: 
+        return_dict = sp.Response()
         # don't update user if there is nothing to change
         if new_username == username and new_password == password:
-            return "There is nothing to change"
+            return_dict.message = "There is nothing to change"
+            return_dict.success = False
+            return return_dict.to_dict()
         
         # get user with id from database
         user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
@@ -186,12 +204,16 @@ def update_user(user_id: str, username: str, password: str, new_username, new_pa
             )
         # if username and password do not match user don't continue
         if not does_username_and_password_match(user_model, username, password):
-            return "Username and password do not match with existing user"
+            return_dict.message = "Username and password do not match with existing user"
+            return_dict.success = False
+            return return_dict.to_dict()
         
         # don't allow to change both username and password at the same time
         # used return because if / elif would change the first 
         if new_username != username and new_password != password:
-            return "Cannot update both username and password at the same time"
+            return_dict.message = "Cannot update both username and password at the same time"
+            return_dict.success = False
+            return return_dict.to_dict()
         
         # change username or password to new username or new password
         if new_username != username:
@@ -204,9 +226,14 @@ def update_user(user_id: str, username: str, password: str, new_username, new_pa
         db.add(user_model)
         db.commit()
 
-        return f"Updated user {username} successfully"
+        return_dict.message = f"Updated user {username} successfully"
+        return_dict.success = True
     except Exception as error:
-        return f"Failed to update user {error}"
+        return_dict.message = ""
+        return_dict.error = f"Failed to update user {error}"
+        return_dict.success = False
+    finally:
+        return return_dict.to_dict()
 
 def run_app():
     uvicorn.run(papertrading_app,host=HOST_IP, port=HOST_PORT)

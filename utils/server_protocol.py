@@ -2,6 +2,8 @@ from enum import Enum
 from hashlib import sha256
 from sys import stdout
 from os import getenv
+from dataclasses import dataclass, asdict, fields
+from typing import Self
 
 from validate_email import validate_email
 from dotenv import load_dotenv
@@ -25,6 +27,23 @@ class Constants(Enum):
     SMTP_SERVER_URL = getenv("SMTP_SERVER_URL")
 
     # root_path = os.path.dirname(os.path.realpath(__file__))
+
+@dataclass
+class Response:
+    success: bool = False
+    message: str = ""
+    error: str = ""
+    debug: str = ""
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+    
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        # Ensure all keys in the dictionary match the dataclass fields
+        field_names: set[str] = {field.name for field in fields(cls)}
+        filtered_data: dict = {key: value for key, value in data.items() if key in field_names}
+        return cls(**filtered_data)
 
 def encode_string(string: str) -> str:
     """

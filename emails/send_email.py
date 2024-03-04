@@ -35,9 +35,9 @@ def create_message(message_title: str, message_type: str) -> MIMEMultipart:
   message["From"] = Constants.SERVER_EMAIL.value
   
   # get absoulte path of email message
-  script_dir = os.path.dirname(__file__)
-  relative_path = f"{message_type}\\{message_type}"
-  absolute_path = os.path.join(script_dir, relative_path)
+  script_dir: str = os.path.dirname(__file__)
+  relative_path: str = f"{message_type}\\{message_type}"
+  absolute_path: str = os.path.join(script_dir, relative_path)
 
   # get email message
   # in plain text
@@ -126,7 +126,7 @@ def send_email_internal(email: str, message: MIMEMultipart) -> bool:
 
 def send_email(email: str, message_type: str) -> bool:
   try:
-    message_to_send = create_message(Message_Types_Titles[message_type].value, Message_Types[message_type].value)
+    message_to_send: MIMEMultipart = create_message(Message_Types_Titles[message_type].value, Message_Types[message_type].value)
     send_email_internal(email, message_to_send)
     return True
   except Exception as error:
