@@ -1,7 +1,10 @@
+from typing import Union
+
 import flet as ft
+
 import gui.utils.gui_protocol as gp
 from gui.router import Router
-from typing import Union
+
 
 class SettingsView:
     def __init__(self, router: Router):

@@ -9,3 +9,4 @@ padnas
 yfinance
 numpy
 matplotlib
+python-dotenv == 1.0.1

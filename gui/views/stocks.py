@@ -1,12 +1,15 @@
 from typing import Union, List
-import flet as ft
-from flet.matplotlib_chart import MatplotlibChart
-from gui.router import Router
-import gui.utils.gui_protocol as gp
-import matplotlib
-import stocks.stock_script as stock_script
 import datetime
 from time import sleep
+
+import matplotlib
+import flet as ft
+from flet.matplotlib_chart import MatplotlibChart
+
+from gui.router import Router
+import gui.utils.gui_protocol as gp
+import stocks.stock_script as stock_script
+
 
 matplotlib.use("svg")
 

@@ -1,7 +1,11 @@
+from typing import Generator
+
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.orm.session import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import Session
 
+from utils.logger_script import logger
 
 @staticmethod
 def create_database_url(database_name: str) -> str:
@@ -42,3 +46,24 @@ db_engine_stocksbase = create_engine(
     create_database_url(stocksbase_name), connect_args=default_connect_args 
 )  
 db_metadata_stocksbase = MetaData()
+
+
+# Get database with generator function
+def get_db_userbase() -> Generator[Session, any, None]:
+    try:
+        db = db_sessionmaker_userbase()
+        yield db
+    except Exception as error:
+        logger.critical(f"ERROR IN GETTING USERBASE DATABASE: {error}")
+    finally:
+        db.close()
+
+def get_db_users_stock() -> Generator[Session, any, None]:
+    try:
+        db = db_sessionmaker_users_stocks()
+        yield db
+    except Exception as error:
+        logger.critical(f"ERROR IN GETTING USER'S STOCKS DATABASE: {error}")
+    finally:
+        db.close()
+

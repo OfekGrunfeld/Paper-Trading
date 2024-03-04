@@ -1,7 +1,9 @@
 from enum import Enum
-import flet as ft
 import os
 from typing import Union
+
+import flet as ft
+
 
 class Constants(Enum):
     name_of_program = "O.G Papertrading"

@@ -1,15 +1,16 @@
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
 
+from sqlalchemy.orm import Session
+
 import utils.server_protocol as sp
-from utils.server_protocol import logger
+from utils.logger_script import logger
 import data.database_models as db_m
 from data.database import (db_base_userbase, db_engine_userbase,
                       db_engine_users_stocks, db_metadata_users_stocks,
                       db_engine_stocksbase, db_metadata_stocksbase)
-
 import emails.send_email as send_email
-from sqlalchemy.orm import Session
+
 
 # CONSTANTS
 HOST_IP = sp.Constants.HOST_IP.value
@@ -20,9 +21,9 @@ papertrading_app = FastAPI()
 # Create database 
 db_base_userbase.metadata.create_all(bind=db_engine_userbase)
 # Create Stocksbase
-# db_metadata_stocksbase.create_all(db_engine_stocksbase)
+db_metadata_stocksbase.create_all(bind=db_engine_stocksbase)
 #create users stocks
-db_metadata_users_stocks.create_all(db_engine_users_stocks)
+db_metadata_users_stocks.create_all(bind=db_engine_users_stocks)
 
 def does_username_and_password_match(user_model, username: str, password: str):
     """
@@ -58,7 +59,12 @@ def get_user_by_username(username: str, db: Session = Depends(db_m.get_db_userba
                 detail=f"ID: {username} does not exist"
             )
         
-        return db.query(db_m.Userbase).all()
+        try: 
+            user = db.query(db_m.Userbase).all()
+            return user
+        except Exception as error:
+            logger.error(f"Failed querying user in database: {error}")
+            return None
     except Exception as error:
         logger.error(f"Failed getting user: {error}")
 
@@ -143,6 +149,25 @@ def delete_user(user_id: str, username: str, password: str, db: Session = Depend
     except Exception as error:
         return f"Failed to delete user {error}"
 
+@papertrading_app.delete("/force_delete_user")
+def force_delete_user(user_id: str, db: Session = Depends(db_m.get_db_userbase)):
+    try: 
+        # get user with id from database
+        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
+        
+        # check if there is no such user
+        if user_model is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"ID: {user_id} does not exist"
+            )
+        
+        # delete user
+        db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).delete()
+        db.commit()
+        return "Deleted user successfully"
+    except Exception as error:
+        return f"Failed to delete user {error}"
 # working fine
 @papertrading_app.put("/update_user")
 def update_user(user_id: str, username: str, password: str, new_username, new_password: str, db: Session = Depends(db_m.get_db_userbase)):
@@ -188,7 +213,3 @@ def run_app():
 
 if __name__ == "__main__":
     run_app()
-    # db_m.generate_user_stocks_table_by_id("10fae810-45d9-415f-909b-2839457330e3")
-    #db_m.add_stock_to_users_stocks_table("10fae810-45d9-415f-909b-2839457330e3", {"timestamp": 1, "ticker": "aapl", "action": "buy", "amount": 56.6, "price": 135.7})
-    # db_m.add_stock_to_users_stocks_table("10fae810-45d9-415f-909b-2839457330e3", {"timestamp": 2, "ticker": "banana", "action": "sell", "amount": 5425.6, "price": 12.7})
-

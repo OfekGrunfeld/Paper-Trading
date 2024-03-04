@@ -8,7 +8,7 @@ from data.database import (db_base_userbase,
                            db_metadata_users_stocks, db_engine_stocksbase, db_metadata_stocksbase, 
                            stocksbase_name, users_stocks_name,
                            db_sessionmaker_userbase, db_sessionmaker_users_stocks, db_engine_users_stocks)
-from utils.server_protocol import logger
+from utils.logger_script import logger
 
 def generate_uuid():
     return str(uuid.uuid4())

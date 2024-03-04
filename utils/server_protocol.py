@@ -1,20 +1,28 @@
 from enum import Enum
 from hashlib import sha256
+from sys import stdout
+from os import getenv
 
 from validate_email import validate_email
+from dotenv import load_dotenv
 
-import utils.logger_script as logger_script 
+from utils.logger_script import logger
+from data.database import get_db_userbase, get_db_users_stock
 
+def get_db_userbase():
+   return get_db_userbase()
 
-logger = logger_script.instantiate_logger()
-
+def get_db_users_stock():
+   return get_db_users_stock()
+   
 class Constants(Enum):
+    load_dotenv()
     HOST_IP = "127.0.0.1"
     HOST_PORT = 5555
 
-    SERVER_EMAIL = "ofekserver@outlook.com"
-    SERVER_PASSWORD = "MyServer123"
-    SMTP_SERVER_URL = "smtp-mail.outlook.com"
+    SERVER_EMAIL = getenv("SERVER_EMAIL")
+    SERVER_PASSWORD = getenv("SERVER_PASSWORD")
+    SMTP_SERVER_URL = getenv("SMTP_SERVER_URL")
 
     # root_path = os.path.dirname(os.path.realpath(__file__))
 

@@ -4,7 +4,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import smtplib
 
-from utils.server_protocol import Constants, logger
+from utils.server_protocol import Constants
+from utils.logger_script import logger
 
 # class to organise different message types
 class Message_Types(Enum):

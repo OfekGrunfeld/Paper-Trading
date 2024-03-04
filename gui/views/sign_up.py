@@ -1,8 +1,11 @@
 from typing import Union
+
 import flet as ft
+import requests
+
 from gui.router import Router
 import gui.utils.gui_protocol as gp
-import requests
+
 
 class SignUpView:
     def __init__(self, router: Router):
