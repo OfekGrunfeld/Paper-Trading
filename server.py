@@ -1,9 +1,11 @@
 from typing import List, Dict, TypedDict
+import datetime
 
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-
+import pandas as pd
+from pandas import DataFrame
 import utils.server_protocol as sp
 from utils.logger_script import logger
 import data.database_models as db_m
@@ -11,7 +13,7 @@ from data.database import (db_base_userbase, db_engine_userbase,
                       db_engine_users_stocks, db_metadata_users_stocks,
                       db_engine_stocksbase, db_metadata_stocksbase)
 import emails.send_email as send_email
-
+from stocks.stock_script import StockPuller
 
 # CONSTANTS
 HOST_IP = sp.Constants.HOST_IP.value
@@ -235,7 +237,33 @@ def update_user(user_id: str, username: str, password: str, new_username, new_pa
     finally:
         return return_dict.to_dict()
 
-def run_app():
+@papertrading_app.get("/stock_data")
+def get_stock_data(ticker: str = None, start: datetime.datetime = None, end: datetime.datetime = None, interval: str = None):
+    try:
+        # get stock data
+        logger.info(f"Got stock data request for {ticker}, Start: {start}, End: {end}, interval: {interval}")
+        stock_data: DataFrame | None = StockPuller.get_stock(ticker=ticker, start=start, end=end, interval=interval)
+        logger.debug(f"Stock data request for {ticker}, Start: {start}, End: {end}, interval: {interval} complete:\n{stock_data}")
+
+        # output to json
+        stock_data_json = stock_data.to_dict()
+        return stock_data_json
+    except Exception as error:
+        logger.error(f"Error getting for {ticker}, Start: {start}, End: {end}, interval: {interval}")
+        return {"error": True}
+
+@papertrading_app.post("/check")
+def check(data: dict):
+    try:
+        logger.debug(f"got data dict {data}")
+        dataframe = pd.read_json(data)
+        logger.debug(f"outputted to dataframe\n{dataframe}")
+        return "good"
+    except Exception as error:
+        print(error)
+        return "bad"
+
+def run_app() -> None:
     uvicorn.run(papertrading_app,host=HOST_IP, port=HOST_PORT)
 
 if __name__ == "__main__":
