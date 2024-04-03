@@ -1,8 +1,9 @@
 from typing import List, Dict, TypedDict
 import datetime
+from io import StringIO
 
 import uvicorn
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 import pandas as pd
 from pandas import DataFrame
@@ -83,6 +84,7 @@ def get_whole_database(db: Session = Depends(db_m.get_db_userbase)) -> List[Dict
 @papertrading_app.post("/sign_up")
 def sign_up(email: str, username: str, password: str, db: Session = Depends(db_m.get_db_userbase)) -> dict[str, str | bool]:
     try: 
+        logger.debug(f"Received sign up request")
         return_dict = sp.Response()
         user_model = db_m.Userbase()
 
@@ -238,22 +240,22 @@ def update_user(user_id: str, username: str, password: str, new_username, new_pa
         return return_dict.to_dict()
 
 @papertrading_app.get("/stock_data")
-def get_stock_data(ticker: str = None, start: datetime.datetime = None, end: datetime.datetime = None, interval: str = None):
+def get_stock_data(ticker: str = None, start: datetime.datetime = None, end: datetime.datetime = None, interval: str = None) -> List[dict]:
     try:
         # get stock data
         logger.info(f"Got stock data request for {ticker}, Start: {start}, End: {end}, interval: {interval}")
         stock_data: DataFrame | None = StockPuller.get_stock(ticker=ticker, start=start, end=end, interval=interval)
-        logger.debug(f"Stock data request for {ticker}, Start: {start}, End: {end}, interval: {interval} complete:\n{stock_data}")
+        logger.debug(f"Stock data request for {ticker} complete:\n{stock_data}")
 
         # output to json
-        stock_data_json = stock_data.to_dict()
+        stock_data_json = stock_data.to_dict(orient="records")
         return stock_data_json
     except Exception as error:
         logger.error(f"Error getting for {ticker}, Start: {start}, End: {end}, interval: {interval}")
         return {"error": True}
 
 @papertrading_app.post("/check")
-def check(data: dict):
+def send_stock_update(data: dict):
     try:
         logger.debug(f"got data dict {data}")
         dataframe = pd.read_json(data)

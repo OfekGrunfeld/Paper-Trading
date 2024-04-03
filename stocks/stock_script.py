@@ -50,7 +50,12 @@ class StockPuller:
         except Exception as error:
             logger.exception(f"Error getting stocks, error: \n{error}")
         finally:
-            return data
+            try:
+                data = data.reset_index()
+            except Exception as error:
+                logger.exception(f"Error getting making datetime column, error: \n{error}")
+            finally:
+                return data
     
     @staticmethod
     def get_stock_plt_figure(df: pd.DataFrame, plot_type: str = "Adj Close") -> plt.Figure:

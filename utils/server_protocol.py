@@ -45,6 +45,7 @@ class Response:
         filtered_data: dict = {key: value for key, value in data.items() if key in field_names}
         return cls(**filtered_data)
 
+
 def encode_string(string: str) -> str:
     """
     Encode a given string using the SHA-256 hashing algorithm.
