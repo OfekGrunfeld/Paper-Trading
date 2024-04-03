@@ -1,0 +1,11 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+*.sqlite
+*/*.pyc
+**.pyc
+*/*.env
+.env
+tester.py

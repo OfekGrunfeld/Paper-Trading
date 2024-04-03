@@ -1,14 +1,20 @@
+from typing import List, Dict, TypedDict
+import datetime
+from io import StringIO
+
 import uvicorn
-from fastapi import FastAPI, Depends, HTTPException
-import server_protocol as sp
-from server_protocol import logger
-import database_models
-from database import db_base, db_engine, db_session
-from typing import Generator
-# for typehints
+from fastapi import FastAPI, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
-from uuid import UUID
-import send_email
+import pandas as pd
+from pandas import DataFrame
+import utils.server_protocol as sp
+from utils.logger_script import logger
+import data.database_models as db_m
+from data.database import (db_base_userbase, db_engine_userbase,
+                      db_engine_users_stocks, db_metadata_users_stocks,
+                      db_engine_stocksbase, db_metadata_stocksbase)
+import emails.send_email as send_email
+from stocks.stock_script import StockPuller
 
 # CONSTANTS
 HOST_IP = sp.Constants.HOST_IP.value
@@ -16,25 +22,21 @@ HOST_PORT = sp.Constants.HOST_PORT.value
 
 # Create FastAPI app
 papertrading_app = FastAPI()
-# Create database, Connect to engine
-db_base.metadata.create_all(bind=db_engine)
-
-# Get database with generator function
-def get_db() -> Generator[Session, any, None]:
-    try:
-        db = db_session()
-        yield db
-    finally:
-        db.close()
+# Create database 
+db_base_userbase.metadata.create_all(bind=db_engine_userbase)
+# Create Stocksbase
+db_metadata_stocksbase.create_all(bind=db_engine_stocksbase)
+#create users stocks
+db_metadata_users_stocks.create_all(bind=db_engine_users_stocks)
 
 def does_username_and_password_match(user_model, username: str, password: str):
     """
     Checks if the username and password entered match the ones in the database
     
     Parameters:
-        user_model (database_models.User): An existing user in the database
-        username (str): username
-        password (str): password
+        :param user_model: An existing user in the database
+        :param username: username
+        :param password: password
     
     Returns:
         True: if the encoded username matches the user's username in the database and the encoded password matches the user's password in the database
@@ -49,10 +51,10 @@ def root():
     return {"message": "Hello World"}
 
 @papertrading_app.get("/get_user_by_username")
-def get_user_by_username(username: str, db: Session = Depends(get_db)):
+def get_user_by_username(username: str, db: Session = Depends(db_m.get_db_userbase)) -> List[Dict]:
     try:
         # get user with id from database
-        user_model = db.query(database_models.User).filter(database_models.User.username == username).first()
+        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.username == username).first()
         
         # check if there is no such user
         if user_model is None:
@@ -61,29 +63,41 @@ def get_user_by_username(username: str, db: Session = Depends(get_db)):
                 detail=f"ID: {username} does not exist"
             )
         
-        return db.query(database_models.User).all()
+        try: 
+            user = db.query(db_m.Userbase).all()
+            return user
+        except Exception as error:
+            logger.error(f"Failed querying user in database: {error}")
+            return None
     except Exception as error:
         logger.error(f"Failed getting user: {error}")
+
 # FINAL (for now)
 @papertrading_app.get("/database")
-def get_whole_database(db: Session = Depends(get_db)):
+def get_whole_database(db: Session = Depends(db_m.get_db_userbase)) -> List[Dict]:
     try:
-        return db.query(database_models.User).all()
+        return db.query(db_m.Userbase).all()
     except Exception as error:
         logger.error(f"Failed getting database: {error}")
 
 # working fine
 @papertrading_app.post("/sign_up")
-def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db)) -> str:
+def sign_up(email: str, username: str, password: str, db: Session = Depends(db_m.get_db_userbase)) -> dict[str, str | bool]:
     try: 
-        user_model = database_models.User()
+        logger.debug(f"Received sign up request")
+        return_dict = sp.Response()
+        user_model = db_m.Userbase()
 
         # filter out using email or username that is already being used
-        if db.query(database_models.User).filter(database_models.User.email == email).first() is not None:
-            return "Failed to sign up. Email associated with existing user"
+        if db.query(db_m.Userbase).filter(db_m.Userbase.email == email).first() is not None:
+            return_dict.error = "Failed to sign up. Email associated with existing user"
+            return return_dict.to_dict()
         # save email as string, save username and password encoded sha256 to database
+        logger.info("Checking if email exists by SMTP and DNS")
         if not sp.is_valid_email_external(email):
-            return "Invalid email address"
+            return_dict.error = "Invalid email address"
+            return return_dict.to_dict()
+        logger.info(f"Email exists: {email}")
         
         # create user with email, username and password 
         user_model.email = email.lower()
@@ -92,26 +106,37 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
 
         # add user to database
         try:
-            logger.info(f"Adding new user to the database: {user_model}")
+            logger.info(f"Adding new user to the database: {user_model.email}")
             db.add(user_model)
             db.commit()
+            logger.info(f"Added new user to the database: {user_model.email}")
         except Exception as error:
             logger.error(f"Failed adding user to database")
-
+            return_dict.error = "Internal Server Error"
+            raise HTTPException(
+                status_code=500,
+                detail=return_dict
+            )
+            
         # send mail to user
-        flag = send_email.send_email(email, send_email.Message_Types["sign_up"].value)
+        flag: bool = send_email.send_email(email, send_email.Message_Types["sign_up"].value)
         if not flag:
+            # Unsure weather to return false if email failed to send
             logger.error(f"Failed sending email to user")
-        return "signed up successfully"
+        return_dict.success = True
     except Exception as error:
-        return f"Failed to sign up {error}"
+        return_dict.success = False
+        return_dict.error = "Internal Server Error"
+    finally:
+        return return_dict.to_dict()
 
 # currently deleted with username and not email / both
 @papertrading_app.delete("/delete_user")
-def delete_user(user_id: UUID, username: str, password: str, db: Session = Depends(get_db)):
+def delete_user(user_id: str, username: str, password: str, db: Session = Depends(db_m.get_db_userbase)):
     try: 
+        return_dict = sp.Response()
         # get user with id from database
-        user_model = db.query(database_models.User).filter(database_models.User.id == user_id).first()
+        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
         
         # check if there is no such user
         if user_model is None:
@@ -123,23 +148,58 @@ def delete_user(user_id: UUID, username: str, password: str, db: Session = Depen
         # delete user if the username and password match the ones in the database
         if does_username_and_password_match(user_model, username, password):
             # delete user
-            db.query(database_models.User).filter(database_models.User.id == user_id).delete()
+            db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).delete()
             db.commit()
-            return "Deleted user successfully"
-        return "username or password do not match"
+            return_dict.message = "Deleted user successfully"
+            return_dict.success = True
+        else:
+            return_dict.message = "Deleted user successfully"
+            return_dict.success = False
     except Exception as error:
-        return f"Failed to delete user {error}"
+        return_dict.message = f"Failed to delete user {error}"
+        return_dict.success = False
+    finally:
+        return return_dict.to_dict()
 
+@papertrading_app.delete("/force_delete_user")
+def force_delete_user(user_id: str, db: Session = Depends(db_m.get_db_userbase)):
+    try: 
+        return_dict = sp.Response()
+        # get user with id from database
+        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
+        
+        # check if there is no such user
+        if user_model is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"ID: {user_id} does not exist"
+            )
+        
+        # delete user
+        db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).delete()
+        db.commit()
+        # update return dict
+        return_dict.message = "Deleted user successfully"
+        return_dict.success = True
+    except Exception as error:
+        return_dict.message = ""
+        return_dict.error = f"Failed to delete user {error}"
+        return_dict.success = False
+    finally:
+        return return_dict.to_dict()
 # working fine
 @papertrading_app.put("/update_user")
-def update_user(user_id: UUID, username: str, password: str, new_username, new_password: str, db: Session = Depends(get_db)):
+def update_user(user_id: str, username: str, password: str, new_username, new_password: str, db: Session = Depends(db_m.get_db_userbase)):
     try: 
+        return_dict = sp.Response()
         # don't update user if there is nothing to change
         if new_username == username and new_password == password:
-            return "There is nothing to change"
+            return_dict.message = "There is nothing to change"
+            return_dict.success = False
+            return return_dict.to_dict()
         
         # get user with id from database
-        user_model = db.query(database_models.User).filter(database_models.User.id == user_id).first()
+        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
         # raise exception if there is no such user
         if user_model is None:
             raise HTTPException(
@@ -148,12 +208,16 @@ def update_user(user_id: UUID, username: str, password: str, new_username, new_p
             )
         # if username and password do not match user don't continue
         if not does_username_and_password_match(user_model, username, password):
-            return "Username and password do not match with existing user"
+            return_dict.message = "Username and password do not match with existing user"
+            return_dict.success = False
+            return return_dict.to_dict()
         
         # don't allow to change both username and password at the same time
         # used return because if / elif would change the first 
         if new_username != username and new_password != password:
-            return "Cannot update both username and password at the same time"
+            return_dict.message = "Cannot update both username and password at the same time"
+            return_dict.success = False
+            return return_dict.to_dict()
         
         # change username or password to new username or new password
         if new_username != username:
@@ -166,11 +230,42 @@ def update_user(user_id: UUID, username: str, password: str, new_username, new_p
         db.add(user_model)
         db.commit()
 
-        return f"Updated user {username} successfully"
+        return_dict.message = f"Updated user {username} successfully"
+        return_dict.success = True
     except Exception as error:
-        return f"Failed to update user {error}"
+        return_dict.message = ""
+        return_dict.error = f"Failed to update user {error}"
+        return_dict.success = False
+    finally:
+        return return_dict.to_dict()
 
-def run_app():
+@papertrading_app.get("/stock_data")
+def get_stock_data(ticker: str = None, start: datetime.datetime = None, end: datetime.datetime = None, interval: str = None) -> List[dict]:
+    try:
+        # get stock data
+        logger.info(f"Got stock data request for {ticker}, Start: {start}, End: {end}, interval: {interval}")
+        stock_data: DataFrame | None = StockPuller.get_stock(ticker=ticker, start=start, end=end, interval=interval)
+        logger.debug(f"Stock data request for {ticker} complete:\n{stock_data}")
+
+        # output to json
+        stock_data_json = stock_data.to_dict(orient="records")
+        return stock_data_json
+    except Exception as error:
+        logger.error(f"Error getting for {ticker}, Start: {start}, End: {end}, interval: {interval}")
+        return {"error": True}
+
+@papertrading_app.post("/check")
+def send_stock_update(data: dict):
+    try:
+        logger.debug(f"got data dict {data}")
+        dataframe = pd.read_json(data)
+        logger.debug(f"outputted to dataframe\n{dataframe}")
+        return "good"
+    except Exception as error:
+        print(error)
+        return "bad"
+
+def run_app() -> None:
     uvicorn.run(papertrading_app,host=HOST_IP, port=HOST_PORT)
 
 if __name__ == "__main__":
