@@ -1,4 +1,4 @@
-from typing import Dict, Self, Literal
+from typing import Self, Literal, Optional
 from dataclasses import dataclass, asdict, fields
 from datetime import datetime
 
@@ -6,10 +6,15 @@ from utils.logger_script import logger
 
 @dataclass
 class StockRecord:
-    timeframe: datetime = False
-    action: Literal["buy", "sell"] = "invalid"
-    amount: float = 0.0
-    price: float = 0.0
+    symbol: str 
+    timestamp: datetime 
+    action: Literal["buy", "sell"]
+    order_type: Literal["market_order", "limit_order","stop_loss"]
+    shares: float
+    price: float # at the time of action
+    commission_price: float
+    total_cost: float
+    notes: Optional[str]
     
     def to_dict(self) -> dict:
         return asdict(self)

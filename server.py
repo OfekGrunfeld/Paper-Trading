@@ -1,6 +1,5 @@
-from typing import List, Dict, TypedDict
+from typing import List, Dict
 import datetime
-from io import StringIO
 
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException, Response
@@ -11,8 +10,8 @@ import utils.server_protocol as sp
 from utils.logger_script import logger
 import data.database_models as db_m
 from data.database import (db_base_userbase, db_engine_userbase,
-                      db_engine_users_stocks, db_metadata_users_stocks,
-                      db_engine_stocksbase, db_metadata_stocksbase)
+                      db_engine_users_stocks, db_metadata_users_stocks)
+
 import emails.send_email as send_email
 from stocks.stock_script import StockPuller
 
@@ -24,8 +23,6 @@ HOST_PORT = sp.Constants.HOST_PORT.value
 papertrading_app = FastAPI()
 # Create database 
 db_base_userbase.metadata.create_all(bind=db_engine_userbase)
-# Create Stocksbase
-db_metadata_stocksbase.create_all(bind=db_engine_stocksbase)
 #create users stocks
 db_metadata_users_stocks.create_all(bind=db_engine_users_stocks)
 
