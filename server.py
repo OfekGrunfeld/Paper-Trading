@@ -127,6 +127,38 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(db_m
     finally:
         return return_dict.to_dict()
 
+@papertrading_app.post("/sign_in")
+def sign_in(username: str, password: str, db: Session = Depends(db_m.get_db_userbase)):
+    try: 
+        logger.debug(f"Received sign in request")
+        return_dict = sp.Response()
+        user_model = db_m.Userbase()
+
+        # create user model with username and password
+        user_model.username = sp.encode_string(username)
+        user_model.password = sp.encode_string(password)
+
+        # filter out using email or username that is already being used
+        if db.query(db_m.Userbase).filter(db_m.Userbase.username == user_model.username).first() is None:
+            logger.debug(f"Signed in for user {username} has failed")
+            return_dict.error = "Failed to sign in. Non-existing user"
+            raise HTTPException(
+                    status_code=404,
+                    detail=return_dict.to_dict()
+                )
+        else:
+            if db.query(db_m.Userbase).filter((db_m.Userbase.username == user_model.username) & (db_m.Userbase.password == user_model.password)).first():
+                logger.debug(f"Signed in for user {username} approved")
+                return_dict.success = True
+            else:
+                logger.debug(f"Signed in for user {username} has failed")
+                return_dict.error = "Failed to sign in. Password is incorrect"
+    except Exception as error:
+        return_dict.message = f"Sign in has failed{error}"
+        return_dict.success = False
+    finally:
+        return return_dict.to_dict()
+
 # currently deleted with username and not email / both
 @papertrading_app.delete("/delete_user")
 def delete_user(user_id: str, username: str, password: str, db: Session = Depends(db_m.get_db_userbase)):
