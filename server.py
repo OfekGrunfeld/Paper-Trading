@@ -6,12 +6,15 @@ from fastapi import FastAPI, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 import pandas as pd
 from pandas import DataFrame
+import yfinance as yf
+import numpy as np
+
 import utils.server_protocol as sp
 from utils.logger_script import logger
 import data.database_models as db_m
 from data.database import (db_base_userbase, db_engine_userbase,
                       db_engine_users_stocks, db_metadata_users_stocks)
-
+from data import StockRecord
 import emails.send_email as send_email
 from stocks.stock_script import StockPuller
 
@@ -25,7 +28,7 @@ papertrading_app = FastAPI()
 db_base_userbase.metadata.create_all(bind=db_engine_userbase)
 #create users stocks
 db_metadata_users_stocks.create_all(bind=db_engine_users_stocks)
-
+db_m.generate_user_stocks_table_by_id("123456")
 def does_username_and_password_match(user_model, username: str, password: str):
     """
     Checks if the username and password entered match the ones in the database
@@ -267,6 +270,47 @@ def update_user(user_id: str, username: str, password: str, new_username, new_pa
         return_dict.success = False
     finally:
         return return_dict.to_dict()
+
+@papertrading_app.post("/submit_order")
+def submit_form(order: dict):
+    try:
+        return_dict = sp.Response()
+        logger.debug(f"Got order: {order}")
+
+        try:
+            info = yf.Ticker(order["symbol"]).info
+        except Exception as error:
+            logger.error(f"Failed to get info of stock from yfinance: {error}")
+
+        match(order["order_type"]):
+            case "market":
+                print(info["currentPrice"])
+                sr = StockRecord(
+                    timestamp=datetime.datetime.now(),
+                    symbol=order["symbol"],
+                    side=order["side"],
+                    order_type=order["order_type"],
+                    shares=order["shares"],
+                    total_cost=np.float64(np.float64(order["shares"]) * np.float64(info["currentPrice"])),
+                    notes=None
+                )
+            
+            case _:
+                return_dict.error = f"Invalid or unsupported order type"
+                return return_dict
+            
+        db_m.add_stock_to_users_stocks_table("123456", sr.to_dict())
+            
+
+        return return_dict
+    except Exception as error:
+        logger.error(f"Error submitting order {error}")
+        return None
+                
+
+
+
+
 
 @papertrading_app.get("/stock_data")
 def get_stock_data(ticker: str = None, start: datetime.datetime = None, end: datetime.datetime = None, interval: str = None) -> List[dict]:

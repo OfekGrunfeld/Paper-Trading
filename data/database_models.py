@@ -2,8 +2,10 @@ import uuid
 from typing import Union, Generator, get_type_hints, Literal, Optional
 from dataclasses import fields
 from datetime import datetime
-from sqlalchemy import insert, Column, String, Table, Integer, Float, DateTime, MetaData
+
+from sqlalchemy import insert, Column, String, Table, Integer, Float, DateTime, MetaData, Double
 from sqlalchemy.orm import Session
+import numpy as np
 
 from data.database import (db_base_userbase,
                            db_metadata_users_stocks,
@@ -54,10 +56,10 @@ def generate_user_stocks_table_by_id(id: str):
         print(field_type)
         if field_type == str:
             column_type = String 
-        elif field_type == float:
-            column_type = Float
         elif field_type == datetime:
             column_type = DateTime
+        elif field_type == float or field_type == np.float64:
+            column_type = Double
         elif hasattr(field_type, '__origin__'):  
             if field_type.__origin__ is Literal:
                 column_type = String
@@ -105,7 +107,7 @@ def add_stock_to_users_stocks_table(id: str, stock_data: dict):
         db.commit()
         db.close()
     except Exception as error:
-        logger.error(f"Could not add user's stock(s) data to database")
+        logger.error(f"Could not add user's stock(s) data to database: {error}")
         db.rollback()
         logger.debug("Rolled back user's stocks database")
         return

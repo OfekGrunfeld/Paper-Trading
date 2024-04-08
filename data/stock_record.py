@@ -2,18 +2,20 @@ from typing import Self, Literal, Optional
 from dataclasses import dataclass, asdict, fields
 from datetime import datetime
 
+import numpy as np
+
 from utils.logger_script import logger
 
 @dataclass
 class StockRecord:
-    symbol: str 
     timestamp: datetime 
-    action: Literal["buy", "sell"]
-    order_type: Literal["market_order", "limit_order","stop_loss"]
-    shares: float
-    price: float # at the time of action
-    commission_price: float
-    total_cost: float
+    symbol: str 
+    side: Literal["buy", "sell"]
+    order_type: Literal["market", "limit", "stop", "stop_limit"]
+    shares: float 
+    # price: float # at the time of action, same as quantity for market currently
+    total_cost: np.double
+
     notes: Optional[str]
     
     def to_dict(self) -> dict:
