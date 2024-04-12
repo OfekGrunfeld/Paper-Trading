@@ -32,14 +32,15 @@ db_sessionmaker_userbase = sessionmaker(autocommit=False, autoflush=False, bind=
 db_base_userbase = declarative_base()
 
 # create engine for users stocks database
-users_stocks_name = "Users_Stocks"
-db_engine_users_stocks = create_engine(
-    create_database_uri(users_stocks_name), connect_args=default_connect_args
+transaction_history_name = "transaction_history"
+db_engine_transaction_history = create_engine(
+    create_database_uri(transaction_history_name), connect_args=default_connect_args
 ) 
-db_sessionmaker_users_stocks = sessionmaker(autocommit=False, autoflush=False, bind=db_engine_users_stocks)
-db_metadata_users_stocks = MetaData()
+db_sessionmaker_transaction_history = sessionmaker(autocommit=False, autoflush=False, bind=db_engine_transaction_history)
+db_metadata_transaction_history = MetaData()
 
-# Get database with generator function
+
+# Get databases with generator functions
 def get_db_userbase() -> Generator[Session, any, None]:
     try:
         db = db_sessionmaker_userbase()
@@ -49,9 +50,9 @@ def get_db_userbase() -> Generator[Session, any, None]:
     finally:
         db.close()
 
-def get_db_users_stock() -> Generator[Session, any, None]:
+def get_db_transaction_history() -> Generator[Session, any, None]:
     try:
-        db = db_sessionmaker_users_stocks()
+        db = db_sessionmaker_transaction_history()
         yield db
     except Exception as error:
         logger.critical(f"ERROR IN GETTING USER'S STOCKS DATABASE: {error}")

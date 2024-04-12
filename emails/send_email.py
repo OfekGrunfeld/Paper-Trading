@@ -4,7 +4,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import smtplib
 
-from utils.server_protocol import Constants
+from utils.constants import SERVER_EMAIL, SERVER_PASSWORD, SMTP_SERVER_URL
 from utils.logger_script import logger
 
 # class to organise different message types
@@ -32,7 +32,7 @@ def create_message(message_title: str, message_type: str) -> MIMEMultipart:
   # initialize message
   message = MIMEMultipart("alternative")
   message["Subject"] = message_title
-  message["From"] = Constants.SERVER_EMAIL.value
+  message["From"] = SERVER_EMAIL
   
   # get absoulte path of email message
   script_dir: str = os.path.dirname(__file__)
@@ -69,7 +69,7 @@ def create_message(message_title: str, message_type: str) -> MIMEMultipart:
 
   return message
   
-def send_email_internal(email: str, message: MIMEMultipart) -> bool:
+def _send_email(email: str, message: MIMEMultipart) -> bool:
   """
   Sends an email to the client using the server's email
 
@@ -84,10 +84,10 @@ def send_email_internal(email: str, message: MIMEMultipart) -> bool:
     logger.info("Connecting to smtp server")
     # connect to smtp server
     try:
-      smtp_object = smtplib.SMTP(Constants.SMTP_SERVER_URL.value, 587)
+      smtp_object = smtplib.SMTP(SMTP_SERVER_URL, 587)
     except Exception as error:
       logger.error(f"Error in connecting to outlook smtp server | {error}")
-      smtp_object = smtplib.SMTP_SSL(Constants.SMTP_SERVER_URL.value, 465)
+      smtp_object = smtplib.SMTP_SSL(SMTP_SERVER_URL, 465)
     
     # use TTLS (for security reasons)
     try: 
@@ -101,8 +101,8 @@ def send_email_internal(email: str, message: MIMEMultipart) -> bool:
 
     # log to server's email 
     try: 
-      logger.info(f"logging into server's email: {Constants.SERVER_EMAIL.value}")
-      smtp_object.login(Constants.SERVER_EMAIL.value, Constants.SERVER_PASSWORD.value) 
+      logger.info(f"logging into server's email: {SERVER_EMAIL}")
+      smtp_object.login(SERVER_EMAIL, SERVER_PASSWORD) 
     except Exception as error:
       logger.error(f"Failed logging into server's email: {error}")
       smtp_object.quit()
@@ -111,7 +111,7 @@ def send_email_internal(email: str, message: MIMEMultipart) -> bool:
     # send mail
     try:
       logger.info(f"Sending email to {email}")
-      smtp_object.sendmail(Constants.SERVER_EMAIL.value, email, message.as_string())
+      smtp_object.sendmail(SERVER_EMAIL, email, message.as_string())
       logger.info("Email sent succefully")
     except Exception as error:
       logger.error(f"Failed sending mail to {email}: {error}")
@@ -126,8 +126,8 @@ def send_email_internal(email: str, message: MIMEMultipart) -> bool:
 
 def send_email(email: str, message_type: str) -> bool:
   try:
-    message_to_send: MIMEMultipart = create_message(Message_Types_Titles[message_type].value, Message_Types[message_type].value)
-    send_email_internal(email, message_to_send)
+    message_to_send: MIMEMultipart = create_message(Message_Types_Titles[message_type], Message_Types[message_type])
+    _send_email(email, message_to_send)
     return True
   except Exception as error:
     logger.error(f"Failed sending {message_type} email to {email}")

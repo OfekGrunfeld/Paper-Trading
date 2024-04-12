@@ -1,30 +1,28 @@
 import uuid
-from typing import Union, Generator, get_type_hints, Literal, Optional
+from typing import Union, Generator, get_type_hints, Literal
 from dataclasses import fields
 from datetime import datetime
 
-from sqlalchemy import insert, Column, String, Table, Integer, Float, DateTime, MetaData, Double
+from sqlalchemy import insert, Column, String, Table, DateTime, Double
 from sqlalchemy.orm import Session
 import numpy as np
 
 from data.database import (db_base_userbase,
-                           db_metadata_users_stocks,
-                           users_stocks_name,
-                           db_sessionmaker_userbase, db_sessionmaker_users_stocks, db_engine_users_stocks)
+                           db_metadata_transaction_history,
+                           db_engine_transaction_history,
+                           get_db_userbase, get_db_transaction_history)
 from utils.logger_script import logger
+from utils.constants import START_BALANCE
 from data.stock_record import StockRecord
 
-
-
-
-
+   
 def generate_uuid() -> str:
     return str(uuid.uuid4())
 
 class Userbase(db_base_userbase):
     """
     Userbase databse:
-    ID: guid | EMAIL: string | USERNAME: string | PASSWORD: string
+    ID: uuid | EMAIL: string | USERNAME: string | PASSWORD: string
     """
     __tablename__ = "Userbase"
 
@@ -34,26 +32,28 @@ class Userbase(db_base_userbase):
     username = Column(String, nullable=False, unique=True)
     password = Column(String, nullable=False)
 
+    balance = Column(Double, nullable=False, default=START_BALANCE) # start balance is $100,000
+
     def __str__(self) -> str:
         try:
-            return f"id: {self.id}, email: {self.email}, username: {self.username}, password: {self.password}"
+            return f"id: {self.id}, email: {self.email}, username: {self.username}, password: {self.password}, balance: {self.balance}"
         except Exception as error:
             return f"Failed creating string: {error}"
-    
 
+    
 @staticmethod
-def generate_user_stocks_table_by_id(id: str):
+def generate_transaction_history_table_by_id(id: str):
     """
     Generate a table of a user to store stocks in
     :param id: A user's UUID
     """
+    logger.debug(f"Generating user stocks table for user {id}")
     # Reflect dataclass structure in table schema
     type_hints = get_type_hints(StockRecord)
     dataclass_columns = []
     for field in fields(StockRecord):
         nullable = False
         field_type = type_hints[field.name]
-        print(field_type)
         if field_type == str:
             column_type = String 
         elif field_type == datetime:
@@ -74,35 +74,34 @@ def generate_user_stocks_table_by_id(id: str):
 
     new_table = Table(
         id,
-        db_metadata_users_stocks,
+        db_metadata_transaction_history,
         *dataclass_columns,
         extend_existing=True
     )
     logger.debug(f"Adding table for user {id}")
     try: 
-        new_table.create(db_engine_users_stocks)
+        new_table.create(db_engine_transaction_history)
         logger.debug(f"Successfully added table to user's stocks database {id}")
     except Exception as error:
-        logger.error(f"Error raised while adding table {id} to user's stocks database: {error}")
-
-    
+        logger.error(f"Error raised while adding table {id} to user's stocks database. Error: {error}")
+  
 @staticmethod
-def add_stock_to_users_stocks_table(id: str, stock_data: dict):
+def add_stock_to_transaction_history_table(id: str, stock_data: dict):
     """
     
     """
-    global db_metadata_users_stocks
+    global db_metadata_transaction_history
     # Get user's stocks table reference from the database
-    users_stocks_table = get_users_stocks_table_by_name(id)
+    transaction_history_table= get_transaction_history_table_by_name(id)
+    if transaction_history_table is None:
+        generate_transaction_history_table_by_id(id)
+        transaction_history_table = get_transaction_history_table_by_name(id)
 
-    # If there was no table found
-    if users_stocks_table is None:
-        logger.error(f"Could not add user's stocks (id:{id}) table ")
     try:
         # Create insert statement for the user stock's data
-        stmt = insert(users_stocks_table).values(stock_data)
+        stmt = insert(transaction_history_table).values(stock_data)
         # Get the database, execute and commit
-        db: Session = next(get_db_users_stocks())
+        db: Session = next(get_db_transaction_history())
         db.execute(stmt)
         db.commit()
         db.close()
@@ -113,53 +112,29 @@ def add_stock_to_users_stocks_table(id: str, stock_data: dict):
         return
     logger.debug(f"Done adding stock data to user {id}'s table")
 
-@staticmethod
-def get_users_stocks_table_by_name(name: str) -> Union[Table, None]:
+def get_transaction_history_table_by_name(name: str) -> Union[Table, None]:
     try:
-        users_stocks_table = db_metadata_users_stocks.tables[name]
-        return users_stocks_table
+        transaction_history_table = db_metadata_transaction_history.tables[name]
+        return transaction_history_table
     except Exception as error:
         logger.error(f"Could not find table {name} in user's stocks database: {error}")
         return None
-    
 
-# @staticmethod
-# def generate_stock_table_for_stocksbase_by_ticker(ticker: str):
-#     """
-#     Generate a table for a specific stock in the stocksbase database
-#     :param ticker: A valid ticker (stock symbol, e.g: AAPL)
-#     """
-#     # NOT COMPLETE - ADD VALIDATION FOR STOCKS TICKERS
-#     possible_tickers = []
-#     possible_tickers.append(ticker)
-#     if ticker not in possible_tickers:
-#         logger.warning("Specified ticker is not valid")
-#         return 
-    
-#     new_table = Table(
-#         ticker,
-#         # db_metadata_stocksbase,
-#         Column("ticker", String, default=ticker, primary_key=True)
-#     )
-#     new_table.create(db_engine_stocksbase)
+# # Get database with generator function
+# def get_db_userbase() -> Generator[Session, any, None]:
+#     try:
+#         db = db_sessionmaker_userbase()
+#         yield db
+#     except Exception as error:
+#         logger.critical(f"ERROR IN GETTING USERBASE DATABASE: {error}")
+#     finally:
+#         db.close()
 
-
-  
-# Get database with generator function
-def get_db_userbase() -> Generator[Session, any, None]:
-    try:
-        db = db_sessionmaker_userbase()
-        yield db
-    except Exception as error:
-        logger.critical(f"ERROR IN GETTING USERBASE DATABASE: {error}")
-    finally:
-        db.close()
-
-def get_db_users_stocks() -> Generator[Session, any, None]:
-    try:
-        db = db_sessionmaker_users_stocks()
-        yield db
-    except Exception as error:
-        logger.critical(f"ERROR IN GETTING USER'S STOCKS DATABASE: {error}")
-    finally:
-        db.close()
+# def get_db_transaction_history() -> Generator[Session, any, None]:
+#     try:
+#         db = db_sessionmaker_transaction_history()
+#         yield db
+#     except Exception as error:
+#         logger.critical(f"ERROR IN GETTING USER'S STOCKS DATABASE: {error}")
+#     finally:
+#         db.close()

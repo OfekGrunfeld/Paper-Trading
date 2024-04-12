@@ -1,34 +1,33 @@
 from typing import List, Dict
 import datetime
+import traceback
 
 import uvicorn
-from fastapi import FastAPI, Depends, HTTPException, Response
+from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-import pandas as pd
-from pandas import DataFrame
 import yfinance as yf
 import numpy as np
 
-import utils.server_protocol as sp
+from utils import encode_string
+from emails.authenticate_email import is_valid_email_external
+from utils.response import Response
 from utils.logger_script import logger
+from utils.constants import HOST_IP, HOST_PORT 
 import data.database_models as db_m
 from data.database import (db_base_userbase, db_engine_userbase,
-                      db_engine_users_stocks, db_metadata_users_stocks)
+                      db_engine_transaction_history, db_metadata_transaction_history,
+                      get_db_userbase, get_db_transaction_history)
 from data import StockRecord
 import emails.send_email as send_email
-from stocks.stock_script import StockPuller
-
-# CONSTANTS
-HOST_IP = sp.Constants.HOST_IP.value
-HOST_PORT = sp.Constants.HOST_PORT.value
 
 # Create FastAPI app
 papertrading_app = FastAPI()
 # Create database 
 db_base_userbase.metadata.create_all(bind=db_engine_userbase)
 #create users stocks
-db_metadata_users_stocks.create_all(bind=db_engine_users_stocks)
-db_m.generate_user_stocks_table_by_id("123456")
+db_metadata_transaction_history.create_all(bind=db_engine_transaction_history)
+
+
 def does_username_and_password_match(user_model, username: str, password: str):
     """
     Checks if the username and password entered match the ones in the database
@@ -42,7 +41,7 @@ def does_username_and_password_match(user_model, username: str, password: str):
         True: if the encoded username matches the user's username in the database and the encoded password matches the user's password in the database
     """
     try:
-        return sp.encode_string(username) == user_model.username and sp.encode_string(password) == user_model.password
+        return encode_string(username) == user_model.username and encode_string(password) == user_model.password
     except Exception as error:
         return False
 
@@ -51,7 +50,7 @@ def root():
     return {"message": "Hello World"}
 
 @papertrading_app.get("/get_user_by_username")
-def get_user_by_username(username: str, db: Session = Depends(db_m.get_db_userbase)) -> List[Dict]:
+def get_user_by_username(username: str, db: Session = Depends(get_db_userbase)) -> List[Dict]:
     try:
         # get user with id from database
         user_model = db.query(db_m.Userbase).filter(db_m.Userbase.username == username).first()
@@ -74,7 +73,7 @@ def get_user_by_username(username: str, db: Session = Depends(db_m.get_db_userba
 
 # FINAL (for now)
 @papertrading_app.get("/database")
-def get_whole_database(db: Session = Depends(db_m.get_db_userbase)) -> List[Dict]:
+def get_whole_database(db: Session = Depends(get_db_userbase)) -> List[Dict]:
     try:
         return db.query(db_m.Userbase).all()
     except Exception as error:
@@ -82,10 +81,10 @@ def get_whole_database(db: Session = Depends(db_m.get_db_userbase)) -> List[Dict
 
 # working fine
 @papertrading_app.post("/sign_up")
-def sign_up(email: str, username: str, password: str, db: Session = Depends(db_m.get_db_userbase)) -> dict[str, str | bool]:
+def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db_userbase)) -> dict[str, str | bool]:
     try: 
         logger.debug(f"Received sign up request")
-        return_dict = sp.Response()
+        return_dict = Response()
         user_model = db_m.Userbase()
 
         # filter out using email or username that is already being used
@@ -94,15 +93,15 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(db_m
             return return_dict.to_dict()
         # save email as string, save username and password encoded sha256 to database
         logger.info("Checking if email exists by SMTP and DNS")
-        if not sp.is_valid_email_external(email):
+        if not is_valid_email_external(email):
             return_dict.error = "Invalid email address"
             return return_dict.to_dict()
         logger.info(f"Email exists: {email}")
         
         # create user with email, username and password 
         user_model.email = email.lower()
-        user_model.username = sp.encode_string(username)
-        user_model.password = sp.encode_string(password)
+        user_model.username = encode_string(username)
+        user_model.password = encode_string(password)
 
         # add user to database
         try:
@@ -119,7 +118,7 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(db_m
             )
             
         # send mail to user
-        flag: bool = send_email.send_email(email, send_email.Message_Types["sign_up"].value)
+        flag: bool = send_email.send_email(email, send_email.Message_Types["sign_up"])
         if not flag:
             # Unsure weather to return false if email failed to send
             logger.error(f"Failed sending email to user")
@@ -131,15 +130,15 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(db_m
         return return_dict.to_dict()
 
 @papertrading_app.post("/sign_in")
-def sign_in(username: str, password: str, db: Session = Depends(db_m.get_db_userbase)):
+def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)):
     try: 
         logger.debug(f"Received sign in request")
-        return_dict = sp.Response()
+        return_dict = Response()
         user_model = db_m.Userbase()
 
         # create user model with username and password
-        user_model.username = sp.encode_string(username)
-        user_model.password = sp.encode_string(password)
+        user_model.username = encode_string(username)
+        user_model.password = encode_string(password)
 
         # filter out using email or username that is already being used
         if db.query(db_m.Userbase).filter(db_m.Userbase.username == user_model.username).first() is None:
@@ -150,9 +149,14 @@ def sign_in(username: str, password: str, db: Session = Depends(db_m.get_db_user
                     detail=return_dict.to_dict()
                 )
         else:
-            if db.query(db_m.Userbase).filter((db_m.Userbase.username == user_model.username) & (db_m.Userbase.password == user_model.password)).first():
+            saved_user = db.query(db_m.Userbase).filter((db_m.Userbase.username == user_model.username) & (db_m.Userbase.password == user_model.password)).first()
+            if saved_user:
                 logger.debug(f"Signed in for user {username} approved")
                 return_dict.success = True
+                try:
+                    return_dict.extra = saved_user.id
+                except Exception as error:
+                    logger.critical(f"Expected error where yes {error}")
             else:
                 logger.debug(f"Signed in for user {username} has failed")
                 return_dict.error = "Failed to sign in. Password is incorrect"
@@ -164,9 +168,9 @@ def sign_in(username: str, password: str, db: Session = Depends(db_m.get_db_user
 
 # currently deleted with username and not email / both
 @papertrading_app.delete("/delete_user")
-def delete_user(user_id: str, username: str, password: str, db: Session = Depends(db_m.get_db_userbase)):
+def delete_user(user_id: str, username: str, password: str, db: Session = Depends(get_db_userbase)):
     try: 
-        return_dict = sp.Response()
+        return_dict = Response()
         # get user with id from database
         user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
         
@@ -194,9 +198,9 @@ def delete_user(user_id: str, username: str, password: str, db: Session = Depend
         return return_dict.to_dict()
 
 @papertrading_app.delete("/force_delete_user")
-def force_delete_user(user_id: str, db: Session = Depends(db_m.get_db_userbase)):
+def force_delete_user(user_id: str, db: Session = Depends(get_db_userbase)):
     try: 
-        return_dict = sp.Response()
+        return_dict = Response()
         # get user with id from database
         user_model = db.query(db_m.Userbase).filter(db_m.Userbase.id == user_id).first()
         
@@ -221,9 +225,9 @@ def force_delete_user(user_id: str, db: Session = Depends(db_m.get_db_userbase))
         return return_dict.to_dict()
 # working fine
 @papertrading_app.put("/update_user")
-def update_user(user_id: str, username: str, password: str, new_username, new_password: str, db: Session = Depends(db_m.get_db_userbase)):
+def update_user(user_id: str, username: str, password: str, new_username, new_password: str, db: Session = Depends(get_db_userbase)):
     try: 
-        return_dict = sp.Response()
+        return_dict = Response()
         # don't update user if there is nothing to change
         if new_username == username and new_password == password:
             return_dict.message = "There is nothing to change"
@@ -253,9 +257,9 @@ def update_user(user_id: str, username: str, password: str, new_username, new_pa
         
         # change username or password to new username or new password
         if new_username != username:
-            user_model.username = sp.encode_string(new_username)
+            user_model.username = encode_string(new_username)
         elif new_password != password:
-            user_model.password = sp.encode_string(new_password)
+            user_model.password = encode_string(new_password)
             
 
         # add User to database
@@ -272,71 +276,58 @@ def update_user(user_id: str, username: str, password: str, new_username, new_pa
         return return_dict.to_dict()
 
 @papertrading_app.post("/submit_order")
-def submit_form(order: dict):
+def submit_order(data: dict, db: Session = Depends(get_db_userbase)):
     try:
-        return_dict = sp.Response()
-        logger.debug(f"Got order: {order}")
-
+        return_dict = Response()
+        
         try:
-            info = yf.Ticker(order["symbol"]).info
+            logger.debug(f"Got order: {data["order"]} from user {data["id"]}")
+        except Exception as error:
+            logger.error(f"Format of order is wrong: {data}. Error: {error}")
+
+        
+        try:
+            info = yf.Ticker(data["order"]["symbol"]).info
         except Exception as error:
             logger.error(f"Failed to get info of stock from yfinance: {error}")
 
-        match(order["order_type"]):
+
+        match(data["order"]["order_type"]):
             case "market":
-                print(info["currentPrice"])
+                return_dict.success = True
+                total_cost = total_cost=np.float64(np.float64(data["order"]["shares"]) * np.float64(info["currentPrice"]))
                 sr = StockRecord(
                     timestamp=datetime.datetime.now(),
-                    symbol=order["symbol"],
-                    side=order["side"],
-                    order_type=order["order_type"],
-                    shares=order["shares"],
-                    total_cost=np.float64(np.float64(order["shares"]) * np.float64(info["currentPrice"])),
+                    symbol=data["order"]["symbol"],
+                    side=data["order"]["side"],
+                    order_type=data["order"]["order_type"],
+                    shares=data["order"]["shares"],
+                    total_cost=total_cost,
                     notes=None
                 )
+                db_m.add_stock_to_transaction_history_table(data["id"], sr.to_dict())
+
+                saved_user = db.query(db_m.Userbase).filter(db_m.Userbase.id == data["id"]).first()
+                
+                bal = saved_user.balance
+                logger.critical(f"Balance: {bal}")
+                saved_user.balance = bal - total_cost
+                db.commit()
+                logger.critical(f"new balance: {saved_user.balance}")
             
             case _:
                 return_dict.error = f"Invalid or unsupported order type"
                 return return_dict
             
-        db_m.add_stock_to_users_stocks_table("123456", sr.to_dict())
+        
             
 
         return return_dict
     except Exception as error:
         logger.error(f"Error submitting order {error}")
+        traceback.print_exc()
         return None
                 
-
-
-
-
-
-@papertrading_app.get("/stock_data")
-def get_stock_data(ticker: str = None, start: datetime.datetime = None, end: datetime.datetime = None, interval: str = None) -> List[dict]:
-    try:
-        # get stock data
-        logger.info(f"Got stock data request for {ticker}, Start: {start}, End: {end}, interval: {interval}")
-        stock_data: DataFrame | None = StockPuller.get_stock(ticker=ticker, start=start, end=end, interval=interval)
-        logger.debug(f"Stock data request for {ticker} complete:\n{stock_data}")
-
-        # output to json
-        stock_data_json = stock_data.to_dict(orient="records")
-        return stock_data_json
-    except Exception as error:
-        logger.error(f"Error getting for {ticker}, Start: {start}, End: {end}, interval: {interval}")
-        return {"error": True}
-
-@papertrading_app.post("/check")
-def send_stock_update(data: dict):
-    try:
-        logger.debug(f"got data dict {data}")
-        dataframe = pd.read_json(data)
-        logger.debug(f"outputted to dataframe\n{dataframe}")
-        return "good"
-    except Exception as error:
-        print(error)
-        return "bad"
 
 def run_app() -> None:
     uvicorn.run(papertrading_app,host=HOST_IP, port=HOST_PORT)
