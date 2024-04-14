@@ -26,7 +26,7 @@ class Userbase(db_base_userbase):
     Userbase databse:
     ID: uuid | EMAIL: string | USERNAME: string | PASSWORD: string
     """
-    __tablename__ = "Userbase"
+    __tablename__ = "userbase"
 
     id = Column(String, primary_key=True, default=generate_uuid, unique=True)
     
@@ -34,7 +34,7 @@ class Userbase(db_base_userbase):
     username = Column(String, nullable=False, unique=True)
     password = Column(String, nullable=False)
 
-    balance = Column(Double, nullable=False, default=START_BALANCE) # start balance is $100,000
+    balance = Column(Double, nullable=False, default=int(START_BALANCE)) 
 
     def __str__(self) -> str:
         try:
@@ -163,40 +163,41 @@ def _generate_table_by_id_for_selected_database(id: str, database_name: str, tab
 #     except Exception as error:
 #         logger.error(f"Error raised while adding table {id} to user's stocks database. Error: {error}")
   
-# @staticmethod
-# def add_stock_to_transaction_history_table(id: str, stock_data: dict):
-#     """
+@staticmethod
+def add_stock_to_transaction_history_table(id: str, stock_data: dict):
+    """
     
-#     """
-#     global db_metadata_transaction_history
-#     # Get user's stocks table reference from the database
-#     transaction_history_table= get_transaction_history_table_by_name(id)
-#     if transaction_history_table is None:
-#         generate_transaction_history_table_by_id(id)
-#         transaction_history_table = get_transaction_history_table_by_name(id)
+    """
+    global db_metadata_transactions
+    # Get user's stocks table reference from the database
+    transaction_history_table= get_transaction_history_table_by_name(id)
+    if transaction_history_table is None:
+        generate_table_by_id_for_selected_database(id, DatabasesNames.transactions.value)
+        transaction_history_table = get_transaction_history_table_by_name(id)
 
-#     try:
-#         # Create insert statement for the user stock's data
-#         stmt = insert(transaction_history_table).values(stock_data)
-#         # Get the database, execute and commit
-#         db: Session = next(get_db_transaction_history())
-#         db.execute(stmt)
-#         db.commit()
-#         db.close()
-#     except Exception as error:
-#         logger.error(f"Could not add user's stock(s) data to database: {error}")
-#         db.rollback()
-#         logger.debug("Rolled back user's stocks database")
-#         return
-#     logger.debug(f"Done adding stock data to user {id}'s table")
+    try:
+        # Create insert statement for the user stock's data
+        stmt = insert(transaction_history_table).values(stock_data)
+        # Get the database, execute and commit
+        db: Session = next(get_db_transactions())
+        db.execute(stmt)
+        db.commit()
+        db.close()
+    except Exception as error:
+        logger.error(f"Could not add user's stock(s) data to database: {error}")
+        db.rollback()
+        logger.debug("Rolled back user's stocks database")
+        return
+    logger.debug(f"Done adding stock data to user {id}'s table")
 
-# def get_transaction_history_table_by_name(name: str) -> Union[Table, None]:
-#     try:
-#         transaction_history_table = db_metadata_transaction_history.tables[name]
-#         return transaction_history_table
-#     except Exception as error:
-#         logger.error(f"Could not find table {name} in user's stocks database: {error}")
-#         return None
+def get_transaction_history_table_by_name(name: str) -> Union[Table, None]:
+    try:
+        transaction_history_table = db_metadata_transactions.tables[name]
+        return transaction_history_table
+    except Exception as error:
+        logger.error(f"Could not find table {name} in user's stocks database: {error}")
+        return None
+
 
 # # Get database with generator function
 # def get_db_userbase() -> Generator[Session, any, None]:

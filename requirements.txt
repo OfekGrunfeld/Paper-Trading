@@ -1,4 +1,4 @@
-uvicorn
+uvicorn==0.29
 fastapi
 git+https://gitea.ksol.io/karolyi/py3-validate-email@v1.0.9
 opencv-python

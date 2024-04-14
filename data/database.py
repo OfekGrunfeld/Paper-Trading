@@ -46,6 +46,7 @@ db_engine_transactions = create_engine(
 ) 
 db_sessionmaker_transactions = sessionmaker(autocommit=False, autoflush=False, bind=db_engine_transactions)
 db_metadata_transactions = MetaData()
+db_metadata_transactions.reflect(bind=db_engine_transactions)
 
 # create engine for portfolios 
 db_engine_portfolios = create_engine(
@@ -53,6 +54,7 @@ db_engine_portfolios = create_engine(
 ) 
 db_sessionmaker_portfolios = sessionmaker(autocommit=False, autoflush=False, bind=db_engine_portfolios)
 db_metadata_portfolios = MetaData()
+db_metadata_portfolios.reflect(bind=db_engine_portfolios)
 
 # Get databases with generator functions
 def get_db_userbase() -> Generator[Session, any, None]:

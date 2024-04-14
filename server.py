@@ -15,8 +15,8 @@ from utils.logger_script import logger
 from utils.constants import HOST_IP, HOST_PORT 
 import data.database_models as db_m
 from data.database import (db_base_userbase, db_engine_userbase,
-                      db_engine_transaction_history, db_metadata_transaction_history,
-                      get_db_userbase, get_db_transaction_history)
+                      db_engine_transactions, db_metadata_transactions,
+                      get_db_userbase, get_db_transactions)
 from data import StockRecord
 import emails.send_email as send_email
 
@@ -25,7 +25,7 @@ papertrading_app = FastAPI()
 # Create database 
 db_base_userbase.metadata.create_all(bind=db_engine_userbase)
 #create users stocks
-db_metadata_transaction_history.create_all(bind=db_engine_transaction_history)
+db_metadata_transactions.create_all(bind=db_engine_transactions)
 
 
 def does_username_and_password_match(user_model, username: str, password: str):
@@ -110,7 +110,7 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
             db.commit()
             logger.info(f"Added new user to the database: {user_model.email}")
         except Exception as error:
-            logger.error(f"Failed adding user to database")
+            logger.error(f"Failed adding user to database: {error}")
             return_dict.error = "Internal Server Error"
             raise HTTPException(
                 status_code=500,
@@ -330,7 +330,7 @@ def submit_order(data: dict, db: Session = Depends(get_db_userbase)):
                 
 
 def run_app() -> None:
-    uvicorn.run(papertrading_app,host=HOST_IP, port=HOST_PORT)
+    uvicorn.run(papertrading_app,host=HOST_IP, port=int(HOST_PORT))
 
 if __name__ == "__main__":
     run_app()
