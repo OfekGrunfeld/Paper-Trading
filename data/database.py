@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Generator
 
 from sqlalchemy import create_engine, MetaData
@@ -7,7 +8,16 @@ from sqlalchemy.orm import Session
 
 from utils.logger_script import logger
 
-@staticmethod
+class DatabasesNames(Enum):
+    userbase = "userbase"
+    transactions = "transactions"
+    portfolios = "portfolios"
+
+    @classmethod
+    def __contains__(cls, item):
+        return item in (member.value for member in cls)
+    
+
 def create_database_uri(database_name: str) -> str:
     """
     Generate a database uri for sqlite
@@ -24,21 +34,25 @@ def create_database_uri(database_name: str) -> str:
 default_connect_args= {"check_same_thread": False}
 
 # create engine for userbase
-userbase_name = "Userbase"
 db_engine_userbase = create_engine(
-    create_database_uri(userbase_name), connect_args=default_connect_args
+    create_database_uri(DatabasesNames.userbase.value), connect_args=default_connect_args
 ) 
 db_sessionmaker_userbase = sessionmaker(autocommit=False, autoflush=False, bind=db_engine_userbase)
 db_base_userbase = declarative_base()
 
-# create engine for users stocks database
-transaction_history_name = "transaction_history"
-db_engine_transaction_history = create_engine(
-    create_database_uri(transaction_history_name), connect_args=default_connect_args
+# create engine for transactions 
+db_engine_transactions = create_engine(
+    create_database_uri(DatabasesNames.transactions.value), connect_args=default_connect_args
 ) 
-db_sessionmaker_transaction_history = sessionmaker(autocommit=False, autoflush=False, bind=db_engine_transaction_history)
-db_metadata_transaction_history = MetaData()
+db_sessionmaker_transactions = sessionmaker(autocommit=False, autoflush=False, bind=db_engine_transactions)
+db_metadata_transactions = MetaData()
 
+# create engine for portfolios 
+db_engine_portfolios = create_engine(
+    create_database_uri(DatabasesNames.portfolios.value), connect_args=default_connect_args
+) 
+db_sessionmaker_portfolios = sessionmaker(autocommit=False, autoflush=False, bind=db_engine_portfolios)
+db_metadata_portfolios = MetaData()
 
 # Get databases with generator functions
 def get_db_userbase() -> Generator[Session, any, None]:
@@ -50,12 +64,21 @@ def get_db_userbase() -> Generator[Session, any, None]:
     finally:
         db.close()
 
-def get_db_transaction_history() -> Generator[Session, any, None]:
+def get_db_transactions() -> Generator[Session, any, None]:
     try:
-        db = db_sessionmaker_transaction_history()
+        db = db_sessionmaker_transactions()
         yield db
     except Exception as error:
-        logger.critical(f"ERROR IN GETTING USER'S STOCKS DATABASE: {error}")
+        logger.critical(f"ERROR IN GETTING TRANSACTIONS DATABASE: {error}")
+    finally:
+        db.close()
+
+def get_db_portfolio() -> Generator[Session, any, None]:
+    try:
+        db = db_sessionmaker_portfolios()
+        yield db
+    except Exception as error:
+        logger.critical(f"ERROR IN GETTING PORTFOLIOS DATABASE: {error}")
     finally:
         db.close()
 
