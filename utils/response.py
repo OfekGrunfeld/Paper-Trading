@@ -4,11 +4,18 @@ from typing import Self
 @dataclass
 class Response:
     success: bool = False
-    message: str = ""
     error: str = ""
+    data: str = ""
     debug: str = ""
     extra: str = ""
 
+    def reset(self) -> None:
+        self.success = False
+        self.error = ""
+        self.data = ""
+        self.debug = ""
+        self.extra = ""
+        
     def to_dict(self) -> dict:
         return asdict(self)
     

@@ -18,4 +18,7 @@ Before you begin, ensure you have the following installed:
 - Any modern web browser
 
 ### Installation
-- There is no installation
+- Generate a certificate from openssl:
+openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365
+
+or use Let's Encrypt and Certify The Web

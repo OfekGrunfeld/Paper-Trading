@@ -24,11 +24,11 @@ def generate_uuid() -> str:
 class Userbase(db_base_userbase):
     """
     Userbase databse:
-    ID: uuid | EMAIL: string | USERNAME: string | PASSWORD: string
+    uuid: uuid | EMAIL: string | USERNAME: string | PASSWORD: string
     """
     __tablename__ = "userbase"
 
-    id = Column(String, primary_key=True, default=generate_uuid, unique=True)
+    uuid = Column(String, primary_key=True, default=generate_uuid, unique=True)
     
     email = Column(String, nullable=False, unique=True)
     username = Column(String, nullable=False, unique=True)
@@ -38,13 +38,15 @@ class Userbase(db_base_userbase):
 
     def __str__(self) -> str:
         try:
-            return f"id: {self.id}, email: {self.email}, username: {self.username}, password: {self.password}, balance: {self.balance}"
+            return f"uuid: {self.uuid}, email: {self.email}, username: {self.username}, password: {self.password}, balance: {self.balance}"
         except Exception as error:
             return f"Failed creating string: {error}"
 
 
-def generate_table_by_id_for_selected_database(id: str, database_name: str):
-    table_format, metadata, engine = None
+def generate_table_by_id_for_selected_database(uuid: str, database_name: str):
+    table_format = None
+    metadata = None
+    engine = None
     database_name = database_name.lower()
 
     match(database_name):
@@ -64,7 +66,8 @@ def generate_table_by_id_for_selected_database(id: str, database_name: str):
     
     if table_format is not None and metadata is not None and engine is not None:
         _generate_table_by_id_for_selected_database(
-            id=id, 
+            uuid=uuid, 
+            database_name=database_name,
             table_format=table_format, 
             metadata=metadata, 
             engine=engine
@@ -72,16 +75,16 @@ def generate_table_by_id_for_selected_database(id: str, database_name: str):
     else:
         logger.warning(f"Could not start to generate table for {database_name}. table format, metadata or engine may be invalid.")
 
-def _generate_table_by_id_for_selected_database(id: str, database_name: str, table_format: dataclass, metadata: MetaData, engine: Engine):
+def _generate_table_by_id_for_selected_database(uuid: str, database_name: str, table_format: dataclass, metadata: MetaData, engine: Engine):
     """
     Generate a table of a user to store stocks in
-    :param id: A user's UUID
+    :param uuid: A user's UUID
     """
     if database_name not in DatabasesNames:
         logger.error(f"Cannot generate table for database {database_name} because it is not one of the supported databases")
         return
 
-    logger.debug(f"Generating {database_name} table for user {id}")
+    logger.debug(f"Generating {database_name} table for user {uuid}")
 
     # Reflect dataclass structure in table schema
     type_hints = get_type_hints(table_format)
@@ -107,25 +110,25 @@ def _generate_table_by_id_for_selected_database(id: str, database_name: str, tab
         dataclass_columns.append(Column(field.name, column_type, nullable=nullable))
 
     new_table = Table(
-        id,
+        uuid,
         metadata,
         *dataclass_columns,
         extend_existing=True
     )
-    logger.debug(f"Adding table for user {id}")
+    logger.debug(f"Adding table for user {uuid}")
     try: 
         new_table.create(engine)
-        logger.debug(f"Successfully added table to {database_name} {id}")
+        logger.debug(f"Successfully added table to {database_name} {uuid}")
     except Exception as error:
-        logger.error(f"Error raised while adding table {id} to {database_name}. Error: {error}")
+        logger.error(f"Error raised while adding table {uuid} to {database_name}. Error: {error}")
 
 # @staticmethod
-# def generate_transaction_history_table_by_id(id: str):
+# def generate_transaction_history_table_by_id(uuid: str):
 #     """
 #     Generate a table of a user to store stocks in
-#     :param id: A user's UUID
+#     :param uuid: A user's UUID
 #     """
-#     logger.debug(f"Generating user stocks table for user {id}")
+#     logger.debug(f"Generating user stocks table for user {uuid}")
 #     # Reflect dataclass structure in table schema
 #     type_hints = get_type_hints(StockRecord)
 #     dataclass_columns = []
@@ -151,29 +154,29 @@ def _generate_table_by_id_for_selected_database(id: str, database_name: str, tab
 
 
 #     new_table = Table(
-#         id,
+#         uuid,
 #         db_metadata_transaction_history,
 #         *dataclass_columns,
 #         extend_existing=True
 #     )
-#     logger.debug(f"Adding table for user {id}")
+#     logger.debug(f"Adding table for user {uuid}")
 #     try: 
 #         new_table.create(db_engine_transaction_history)
-#         logger.debug(f"Successfully added table to user's stocks database {id}")
+#         logger.debug(f"Successfully added table to user's stocks database {uuid}")
 #     except Exception as error:
-#         logger.error(f"Error raised while adding table {id} to user's stocks database. Error: {error}")
+#         logger.error(f"Error raised while adding table {uuid} to user's stocks database. Error: {error}")
   
 @staticmethod
-def add_stock_to_transaction_history_table(id: str, stock_data: dict):
+def add_stock_to_transaction_history_table(uuid: str, stock_data: dict):
     """
     
     """
     global db_metadata_transactions
     # Get user's stocks table reference from the database
-    transaction_history_table= get_transaction_history_table_by_name(id)
+    transaction_history_table= get_transaction_history_table_by_name(uuid)
     if transaction_history_table is None:
-        generate_table_by_id_for_selected_database(id, DatabasesNames.transactions.value)
-        transaction_history_table = get_transaction_history_table_by_name(id)
+        generate_table_by_id_for_selected_database(uuid, DatabasesNames.transactions.value)
+        transaction_history_table = get_transaction_history_table_by_name(uuid)
 
     try:
         # Create insert statement for the user stock's data
@@ -188,7 +191,7 @@ def add_stock_to_transaction_history_table(id: str, stock_data: dict):
         db.rollback()
         logger.debug("Rolled back user's stocks database")
         return
-    logger.debug(f"Done adding stock data to user {id}'s table")
+    logger.debug(f"Done adding stock data to user {uuid}'s table")
 
 def get_transaction_history_table_by_name(name: str) -> Union[Table, None]:
     try:
