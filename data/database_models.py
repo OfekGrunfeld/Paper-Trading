@@ -46,6 +46,26 @@ class Userbase(db_base_userbase):
             return f"Failed creating string: {error}"
 
 def get_database_variables_by_name(database_name: str):
+    """
+    Retrieves configuration variables for a specified database by its name.
+
+    This function dynamically matches the `database_name` to the corresponding
+    SQLAlchemy `Table`, `MetaData`, and `Engine` configurations based on predefined
+    database settings. It is designed to facilitate the connection and interaction
+    with different database schemas managed within the application.
+
+    Args:
+        `database_name` (str): The name of the database for which to retrieve configuration.
+                               This should be one of the values specified in `DatabasesNames`.
+
+    Returns:
+        tuple: A tuple containing three elements in the order:
+               (table_format, metadata, engine)
+               - `table_format` (`dataclass`): The dataclass associated with the database tables.
+               - `metadata` (`MetaData`): The metadata object associated with the database.
+               - `engine` (`Engine`): The database engine object for executing queries.
+    """
+     
     table_format = None
     metadata = None
     engine = None
@@ -67,6 +87,7 @@ def get_database_variables_by_name(database_name: str):
             return
     
     return (table_format, metadata, engine)
+
 def generate_table_by_id_for_selected_database(uuid: str, database_name: str):
     table_format, metadata, engine = get_database_variables_by_name(database_name)
     
@@ -96,8 +117,10 @@ def _generate_table_by_id_for_selected_database(uuid: str, database_name: str, t
     # Reflect dataclass structure in table schema
     type_hints = get_type_hints(table_format)
     dataclass_columns = []
-    dataclass_columns.append(Column("UID", String, primary_key=True, default=generate_uuid, unique=True))
     for field in fields(StockRecord):
+        if field.name.lower() == "uid":
+            dataclass_columns.append(Column("uid", String, primary_key=True, unique=True))
+            continue
         nullable = False
         field_type = type_hints[field.name]
         if field_type == str:
@@ -130,12 +153,7 @@ def _generate_table_by_id_for_selected_database(uuid: str, database_name: str, t
     except Exception as error:
         logger.error(f"Error raised while adding table {uuid} to {database_name}. Error: {error}")
 
-
 def add_stock_data_to_selected_database_table(database_name: str, table_name: str, stock_data: dict):
-    """
-    
-    """
-    global db_metadata_transactions
     # Get user's stocks table reference from the database
     table_object: Table = get_table_object_from_selected_database_by_name(table_name, database_name)
     if table_object is None:

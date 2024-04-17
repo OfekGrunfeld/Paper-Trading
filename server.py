@@ -19,6 +19,7 @@ from data.database import (db_base_userbase, db_engine_userbase,
                       get_db_userbase,
                       DatabasesNames)
 from data import StockRecord
+import data.stock_handler as stock_handler
 import emails.send_email as send_email
 
 # Create FastAPI app
@@ -27,6 +28,8 @@ papertrading_app = FastAPI()
 db_base_userbase.metadata.create_all(bind=db_engine_userbase)
 #create users stocks
 db_metadata_transactions.create_all(bind=db_engine_transactions)
+
+stock_handler.run_query_loop()
 
 
 def does_username_and_password_match(user_model, username: str, password: str):
@@ -194,6 +197,7 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
                     table_name=uuid, 
                     stock_data=sr.to_dict()
                 )
+
 
                 saved_user = db.query(Userbase).filter(Userbase.uuid == uuid).first()
                 
