@@ -32,6 +32,7 @@ class StockRecord(BetterDataclass):
     side: Literal["buy", "sell"]
     order_type: Literal["market", "limit", "stop", "stop_limit"]
     shares: float 
+    cost_per_share: np.double
     total_cost: np.double
     status: str
     notes: Optional[str]

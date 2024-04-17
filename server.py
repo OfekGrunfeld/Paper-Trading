@@ -13,10 +13,11 @@ from emails.authenticate_email import is_valid_email_external
 from utils.response import Response
 from utils.logger_script import logger
 from utils.constants import HOST_IP, HOST_PORT 
-import data.database_models as db_m
+from data.database_models import Userbase, add_stock_data_to_selected_database_table
 from data.database import (db_base_userbase, db_engine_userbase,
                       db_engine_transactions, db_metadata_transactions,
-                      get_db_userbase, get_db_transactions)
+                      get_db_userbase,
+                      DatabasesNames)
 from data import StockRecord
 import emails.send_email as send_email
 
@@ -65,12 +66,12 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
     try: 
         logger.debug(f"Received sign up request")
         return_dict = Response()
-        user_model = db_m.Userbase()
+        user_model = Userbase()
 
         email, username, password = decrypt(email), decrypt(username), decrypt(password)
         logger.debug(f"Email: {email}, username: {username}, password: {password}")
         # filter out using email or username that is already being used
-        if db.query(db_m.Userbase).filter(db_m.Userbase.email == email).first() is not None:
+        if db.query(Userbase).filter(Userbase.email == email).first() is not None:
             return_dict.error = "Failed to sign up. Email associated with existing user"
         else:
             # save email as string, save username and password encoded sha256 to database
@@ -120,7 +121,7 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
     try: 
         logger.debug(f"Received sign in request")
         return_dict = Response()
-        user_model = db_m.Userbase()
+        user_model = Userbase()
 
         username, password = decrypt(username), decrypt(password)
 
@@ -129,7 +130,7 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
         user_model.password = encode_string(password)
 
         # filter out using email or username that is already being used
-        if db.query(db_m.Userbase).filter(db_m.Userbase.username == user_model.username).first() is None:
+        if db.query(Userbase).filter(Userbase.username == user_model.username).first() is None:
             logger.debug(f"Failed to sign in {username}. Non-existing usern ")
             return_dict.error = "Failed to sign in. Non-existing user"
             raise HTTPException(
@@ -137,7 +138,7 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
                 detail=return_dict.to_dict()
             )
         else:
-            saved_user = db.query(db_m.Userbase).filter((db_m.Userbase.username == user_model.username) & (db_m.Userbase.password == user_model.password)).first()
+            saved_user = db.query(Userbase).filter((Userbase.username == user_model.username) & (Userbase.password == user_model.password)).first()
             if saved_user is not None:
                 logger.debug(f"Signed in for user {username} approved")
                 return_dict.success = True
@@ -178,7 +179,8 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
         match(order["order_type"]):
             case "market":
                 return_dict.success = True
-                total_cost = total_cost=np.float64(np.float64(order["shares"]) * np.float64(info["currentPrice"]))
+                cost_per_share =  np.float64(info["currentPrice"])
+                total_cost = total_cost=np.float64(np.float64(order["shares"]) * cost_per_share)
                 sr = StockRecord(
                     timestamp=datetime.datetime.now(),
                     symbol=order["symbol"],
@@ -186,13 +188,18 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
                     order_type=order["order_type"],
                     shares=order["shares"],
                     total_cost=total_cost,
+                    cost_per_share=cost_per_share,
                     status="",  
                     notes=None
                 )
                 # for debugging currently
-                db_m.add_stock_to_transaction_history_table(uuid, sr.to_dict())
+                add_stock_data_to_selected_database_table(
+                    database_name=DatabasesNames.transactions.value, 
+                    table_name=uuid, 
+                    stock_data=sr.to_dict()
+                )
 
-                saved_user = db.query(db_m.Userbase).filter(db_m.Userbase.uuid == uuid).first()
+                saved_user = db.query(Userbase).filter(Userbase.uuid == uuid).first()
                 
                 bal = saved_user.balance
                 saved_user.balance = bal - total_cost
@@ -216,7 +223,7 @@ def get_user_by_username(data: dict, db: Session = Depends(get_db_userbase)) -> 
         username = data["username"]
 
         # get user with uuid from database
-        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.username == username).first()
+        user_model = db.query(Userbase).filter(Userbase.username == username).first()
         
         
         # check if there is no such user
@@ -228,7 +235,7 @@ def get_user_by_username(data: dict, db: Session = Depends(get_db_userbase)) -> 
             )
         
         try: 
-            user = db.query(db_m.Userbase).all()
+            user = db.query(Userbase).all()
             return_dict.data = str(user)
         except Exception as error:
             logger.error(f"Failed querying user in database: {error}")
@@ -258,7 +265,7 @@ def delete_user(data: dict, db: Session = Depends(get_db_userbase)):
         uuid, username, password, = (data["uuid"], data["username"], data["password"])
         logger.debug(f"Received request to delete user: {username}")
         # get user with uuid from database
-        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.uuid == uuid).first()
+        user_model = db.query(Userbase).filter(Userbase.uuid == uuid).first()
         
         # check if there is no such user
         if user_model is None:
@@ -272,7 +279,7 @@ def delete_user(data: dict, db: Session = Depends(get_db_userbase)):
         # delete user if the username and password match the ones in the database
         if does_username_and_password_match(user_model, username, password):
             # delete user
-            db.query(db_m.Userbase).filter(db_m.Userbase.uuid == uuid).delete()
+            db.query(Userbase).filter(Userbase.uuid == uuid).delete()
             db.commit()
             return_dict.data = "Deleted user successfully"
             return_dict.success = True
@@ -294,7 +301,7 @@ def force_delete_user(data: dict, db: Session = Depends(get_db_userbase)):
         # get user with uuid from database
         
         uuid = data["uuid"]
-        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.uuid == uuid).first()
+        user_model = db.query(Userbase).filter(Userbase.uuid == uuid).first()
         
         # check if there is no such user
         if user_model is None:
@@ -306,7 +313,7 @@ def force_delete_user(data: dict, db: Session = Depends(get_db_userbase)):
             )
         
         # delete user
-        db.query(db_m.Userbase).filter(db_m.Userbase.uuid == uuid).delete()
+        db.query(Userbase).filter(Userbase.uuid == uuid).delete()
         db.commit()
         # update return dict
         return_dict.data = "Deleted user successfully"
@@ -331,7 +338,7 @@ def update_user(uuid: str, username: str, password: str, new_username, new_passw
             return return_dict.to_dict()
         
         # get user with uuid from database
-        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.uuid == uuid).first()
+        user_model = db.query(Userbase).filter(Userbase.uuid == uuid).first()
         # raise exception if there is no such user
         if user_model is None:
             raise HTTPException(

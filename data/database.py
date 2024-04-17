@@ -84,3 +84,24 @@ def get_db_portfolio() -> Generator[Session, any, None]:
     finally:
         db.close()
 
+database_functions = {
+    DatabasesNames.userbase.value: get_db_userbase,
+    DatabasesNames.transactions.value: get_db_transactions,
+    DatabasesNames.portfolios.value: get_db_portfolio,
+}
+
+def get_db(database_name: str):
+    """
+    Unified generator to yield a session for a specified database.
+    
+    Args:
+        database_name (str): The name of the database to yield a session for.
+
+    Yields:
+        Session: A database session.
+    """
+    if database_name in DatabasesNames:
+        generator_function = database_functions[database_name]
+        yield from generator_function()
+    else:
+        raise ValueError(f"No database found with the name {database_name}")
