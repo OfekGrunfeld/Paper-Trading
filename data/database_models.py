@@ -84,7 +84,7 @@ def _generate_table_by_id_for_selected_database(uuid: str, database_name: str, t
         logger.error(f"Cannot generate table for database {database_name} because it is not one of the supported databases")
         return
 
-    logger.debug(f"Generating {database_name} table for user {uuid}")
+    logger.info(f"Generating {database_name} table for user {uuid}")
 
     # Reflect dataclass structure in table schema
     type_hints = get_type_hints(table_format)
@@ -198,7 +198,7 @@ def get_transaction_history_table_by_name(name: str) -> Union[Table, None]:
         transaction_history_table = db_metadata_transactions.tables[name]
         return transaction_history_table
     except Exception as error:
-        logger.error(f"Could not find table {name} in user's stocks database: {error}")
+        logger.warning(f"Could not find table {name} in user's stocks database: {error}")
         return None
 
 

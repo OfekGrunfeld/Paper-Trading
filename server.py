@@ -59,63 +59,26 @@ async def add_process_time_header(request: Request, call_next):
 def root():
     return {"message": "Hello World"}
 
-@papertrading_app.get("/get_user_by_username")
-def get_user_by_username(data: dict, db: Session = Depends(get_db_userbase)) -> List[Dict]:
-    try:
-        return_dict = Response()
-        username = data["username"]
-
-        # get user with uuid from database
-        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.username == username).first()
-        
-        
-        # check if there is no such user
-        if user_model is None:
-            return_dict["error"] = f"Username: {username} does not exist"
-            raise HTTPException(
-                status_code=404,
-                detail=return_dict.to_dict()
-            )
-        
-        try: 
-            user = db.query(db_m.Userbase).all()
-            return_dict.data = str(user)
-        except Exception as error:
-            logger.error(f"Failed querying user in database: {error}")
-            return_dict.reset()
-            return_dict.error = f"Failed querying user in database"
-            raise HTTPException(
-                status_code=500,
-                detail=return_dict.to_dict()
-            )
-    except Exception as error:
-        logger.error(f"Failed getting user: {error}")
-        return_dict.reset()
-        return_dict.error = f"Failed getting user"
-        raise HTTPException(
-            status_code=500,
-            detail=return_dict.to_dict()
-        )
-    finally:
-        return return_dict.to_dict()
 
 @papertrading_app.post("/sign_up")
-def sign_up(data: dict, db: Session = Depends(get_db_userbase)) -> dict[str, str | bool]:
+def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db_userbase)) -> dict[str, str | bool]:
     try: 
         logger.debug(f"Received sign up request")
         return_dict = Response()
         user_model = db_m.Userbase()
 
-        email, username, password = (data["email"], data["username"], data["password"])
-
+        email, username, password = decrypt(email), decrypt(username), decrypt(password)
+        logger.debug(f"Email: {email}, username: {username}, password: {password}")
         # filter out using email or username that is already being used
         if db.query(db_m.Userbase).filter(db_m.Userbase.email == email).first() is not None:
             return_dict.error = "Failed to sign up. Email associated with existing user"
         else:
             # save email as string, save username and password encoded sha256 to database
-            logger.info("Checking if email exists by SMTP and DNS")
-            if not is_valid_email_external(email):
-                return_dict.error = "Invalid email address"
+            # logger.info("Checking if email exists by SMTP and DNS")
+            # if not is_valid_email_external(email):
+            #     return_dict.error = "Invalid email address"
+            if False:
+                pass
             else:
                 logger.info(f"Email exists: {email}")
                 
@@ -153,13 +116,13 @@ def sign_up(data: dict, db: Session = Depends(get_db_userbase)) -> dict[str, str
         return return_dict.to_dict()
 
 @papertrading_app.post("/sign_in")
-def sign_in(data: dict, db: Session = Depends(get_db_userbase)):
+def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)):
     try: 
         logger.debug(f"Received sign in request")
         return_dict = Response()
         user_model = db_m.Userbase()
 
-        username, password = (data["email"], data["username"])
+        username, password = decrypt(username), decrypt(password)
 
         # create user model with username and password
         user_model.username = encode_string(username)
@@ -190,6 +153,99 @@ def sign_in(data: dict, db: Session = Depends(get_db_userbase)):
         logger.error(f"Sign in has failed {error}")
         return_dict.error = "Sign in has failed"
         return_dict.success = False
+    finally:
+        logger.debug(f"sending back data: {return_dict.to_dict()}")
+        return return_dict.to_dict()
+
+
+@papertrading_app.post("/submit_order")
+def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
+    try:
+        uuid, order = decrypt(uuid), decrypt(order)
+        return_dict = Response()
+
+        try:
+            logger.debug(f"Got order: {order} from user {uuid}")
+        except Exception as error:
+            logger.error(f"Format of order is wrong: {order}. Error: {error}")
+
+        try:
+            info = yf.Ticker(order["symbol"]).info
+        except Exception as error:
+            logger.error(f"Failed to get info of stock from yfinance: {error}")
+
+
+        match(order["order_type"]):
+            case "market":
+                return_dict.success = True
+                total_cost = total_cost=np.float64(np.float64(order["shares"]) * np.float64(info["currentPrice"]))
+                sr = StockRecord(
+                    timestamp=datetime.datetime.now(),
+                    symbol=order["symbol"],
+                    side=order["side"],
+                    order_type=order["order_type"],
+                    shares=order["shares"],
+                    total_cost=total_cost,
+                    status="",  
+                    notes=None
+                )
+                # for debugging currently
+                db_m.add_stock_to_transaction_history_table(uuid, sr.to_dict())
+
+                saved_user = db.query(db_m.Userbase).filter(db_m.Userbase.uuid == uuid).first()
+                
+                bal = saved_user.balance
+                saved_user.balance = bal - total_cost
+                db.commit()
+                logger.debug(f"Updated {uuid}'s balance to: {saved_user.balance}")
+            
+            case _:
+                return_dict.error = f"Invalid or unsupported order type"
+            
+        
+        return return_dict
+    except Exception as error:
+        logger.error(f"Error submitting order {error}")
+        return None
+
+""" EVERYTHING BELOW HERE IS NOT UPDATED FOR COMMUNICATION IN THE ENCRYPTION"""
+@papertrading_app.get("/get_user_by_username")
+def get_user_by_username(data: dict, db: Session = Depends(get_db_userbase)) -> List[Dict]:
+    try:
+        return_dict = Response()
+        username = data["username"]
+
+        # get user with uuid from database
+        user_model = db.query(db_m.Userbase).filter(db_m.Userbase.username == username).first()
+        
+        
+        # check if there is no such user
+        if user_model is None:
+            return_dict["error"] = f"Username: {username} does not exist"
+            raise HTTPException(
+                status_code=404,
+                detail=return_dict.to_dict()
+            )
+        
+        try: 
+            user = db.query(db_m.Userbase).all()
+            return_dict.data = str(user)
+        except Exception as error:
+            logger.error(f"Failed querying user in database: {error}")
+            return_dict.reset()
+            return_dict.error = f"Failed querying user in database"
+            raise HTTPException(
+                status_code=500,
+                detail=return_dict.to_dict()
+            )
+    except Exception as error:
+        logger.error(f"Failed getting user: {error}")
+        return_dict.reset()
+        return_dict.error = f"Failed getting user"
+        raise HTTPException(
+            status_code=500,
+            detail=return_dict.to_dict()
+        )
     finally:
         return return_dict.to_dict()
 
@@ -314,58 +370,6 @@ def update_user(uuid: str, username: str, password: str, new_username, new_passw
         return_dict.success = False
     finally:
         return return_dict.to_dict()
-
-@papertrading_app.post("/submit_order")
-def submit_order(data: dict, db: Session = Depends(get_db_userbase)):
-    try:
-        return_dict = Response()
-
-        try:
-            logger.debug(f"Got order: {data["order"]} from user {data["uuid"]}")
-        except Exception as error:
-            logger.error(f"Format of order is wrong: {data}. Error: {error}")
-
-        
-        try:
-            info = yf.Ticker(data["order"]["symbol"]).info
-        except Exception as error:
-            logger.error(f"Failed to get info of stock from yfinance: {error}")
-
-
-        match(data["order"]["order_type"]):
-            case "market":
-                return_dict.success = True
-                total_cost = total_cost=np.float64(np.float64(data["order"]["shares"]) * np.float64(info["currentPrice"]))
-                sr = StockRecord(
-                    timestamp=datetime.datetime.now(),
-                    symbol=data["order"]["symbol"],
-                    side=data["order"]["side"],
-                    order_type=data["order"]["order_type"],
-                    shares=data["order"]["shares"],
-                    total_cost=total_cost,
-                    status="",  
-                    notes=None
-                )
-                # for debugging currently
-                db_m.add_stock_to_transaction_history_table(data["uuid"], sr.to_dict())
-
-                saved_user = db.query(db_m.Userbase).filter(db_m.Userbase.uuid == data["uuid"]).first()
-                
-                bal = saved_user.balance
-                logger.critical(f"Balance: {bal}")
-                saved_user.balance = bal - total_cost
-                db.commit()
-                logger.critical(f"new balance: {saved_user.balance}")
-            
-            case _:
-                return_dict.error = f"Invalid or unsupported order type"
-            
-        
-        return return_dict
-    except Exception as error:
-        logger.error(f"Error submitting order {error}")
-        traceback.print_exc()
-        return None
 
 def run_app() -> None:
     uvicorn.run(
