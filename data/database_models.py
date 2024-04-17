@@ -1,4 +1,5 @@
 import uuid
+from enum import Enum
 from typing import Union, get_type_hints, Literal
 from dataclasses import fields
 from datetime import datetime
@@ -17,8 +18,10 @@ from utils.logger_script import logger
 from utils.constants import START_BALANCE
 from data.records import StockRecord
 
-   
 def generate_uuid() -> str:
+    """
+    Generatea a unique user identifier
+    """
     return str(uuid.uuid4())
 
 class Userbase(db_base_userbase):
@@ -89,9 +92,11 @@ def _generate_table_by_id_for_selected_database(uuid: str, database_name: str, t
 
     logger.info(f"Generating {database_name} table for user {uuid}")
 
+    
     # Reflect dataclass structure in table schema
     type_hints = get_type_hints(table_format)
     dataclass_columns = []
+    dataclass_columns.append(Column("UID", String, primary_key=True, default=generate_uuid, unique=True))
     for field in fields(StockRecord):
         nullable = False
         field_type = type_hints[field.name]

@@ -1,10 +1,18 @@
 from typing import Self, Literal, Optional
-from dataclasses import dataclass, asdict, fields
+from dataclasses import dataclass, asdict, fields, field
 from datetime import datetime
 import numpy as np
+from enum import Enum
 
 from utils.logger_script import logger
 
+class Statuses(Enum):
+    # for stock record creation - stocks that should be tracked
+    pending = "pending"
+    # for stocks that need to be tracked
+    tracked = "tracked"
+    # for stocks in the transaction history or 
+    archived = "archived"
 
 class BetterDataclass:
     """
@@ -27,14 +35,17 @@ class BetterDataclass:
 
 @dataclass
 class StockRecord(BetterDataclass):
-    timestamp: datetime 
+    timestamp: datetime = field(init=False, default=datetime.now())
     symbol: str 
     side: Literal["buy", "sell"]
     order_type: Literal["market", "limit", "stop", "stop_limit"]
-    shares: float 
+    shares: np.double 
     cost_per_share: np.double
-    total_cost: np.double
-    status: str
-    notes: Optional[str]
+    total_cost: np.double = field(init=False)
+    status: str = field(default=Statuses.pending.value)
+    notes: Optional[str] = None
+
+    def __post_init__(self):
+        self.total_cost = np.double(self.shares * self.cost_per_share)
     
     

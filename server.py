@@ -131,7 +131,7 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
 
         # filter out using email or username that is already being used
         if db.query(Userbase).filter(Userbase.username == user_model.username).first() is None:
-            logger.debug(f"Failed to sign in {username}. Non-existing usern ")
+            logger.debug(f"Failed to sign in {username}. Non-existing user")
             return_dict.error = "Failed to sign in. Non-existing user"
             raise HTTPException(
                 status_code=404,
@@ -158,7 +158,6 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
         logger.debug(f"sending back data: {return_dict.to_dict()}")
         return return_dict.to_dict()
 
-
 @papertrading_app.post("/submit_order")
 def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
     try:
@@ -180,16 +179,13 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
             case "market":
                 return_dict.success = True
                 cost_per_share =  np.float64(info["currentPrice"])
-                total_cost = total_cost=np.float64(np.float64(order["shares"]) * cost_per_share)
+                # total_cost = np.float64(np.float64(order["shares"]) * cost_per_share)
                 sr = StockRecord(
-                    timestamp=datetime.datetime.now(),
                     symbol=order["symbol"],
                     side=order["side"],
                     order_type=order["order_type"],
                     shares=order["shares"],
-                    total_cost=total_cost,
                     cost_per_share=cost_per_share,
-                    status="",  
                     notes=None
                 )
                 # for debugging currently
@@ -202,7 +198,7 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
                 saved_user = db.query(Userbase).filter(Userbase.uuid == uuid).first()
                 
                 bal = saved_user.balance
-                saved_user.balance = bal - total_cost
+                saved_user.balance = bal - sr.total_cost
                 db.commit()
                 logger.debug(f"Updated {uuid}'s balance to: {saved_user.balance}")
             
