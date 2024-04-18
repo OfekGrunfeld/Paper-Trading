@@ -393,5 +393,6 @@ def run_app() -> None:
     )
 
 if __name__ == "__main__":
+    stock_handler.test_move(DatabasesNames.transactions.value, DatabasesNames.portfolios.value)
     run_app()
-    stock_handler.run_query_loop()
+    

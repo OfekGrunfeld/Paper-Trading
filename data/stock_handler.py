@@ -1,84 +1,10 @@
-from typing import Union
-import sched
-import time
-
-from sqlalchemy import create_engine, MetaData, Engine, and_
-from sqlalchemy.sql import select, operators
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
-from data.database import DatabasesNames
-from data.database_models import get_database_variables_by_name
-from utils.logger_script import logger
+from data.database_models import get_database_variables_by_name, generate_table_by_id_for_selected_database
 from data.records import StockRecord
-
-def query_all_tables_in_selected_database(database_name: str, columns: list[str], filters: list[tuple]):
-    _, metadata, engine = get_database_variables_by_name(database_name)
-    metadata: MetaData
-    engine: Engine
-
-    session = sessionmaker(bind=engine)()
-    try:
-        results = []
-        for table_name in metadata.tables:
-            table = metadata.tables[table_name]
-            if all(col in table.columns for col in columns):
-                logger.debug(f"All columns to query ({columns}) are in the table")
-                select_columns = [table.c[col] for col in columns]
-                query = select(*select_columns)
-                
-                if filters and all(col in table.columns for col, _, _ in filters):
-                    conditions = [op(table.c[col], val) for col, op, val in filters]
-                    query = query.where(and_(*conditions))
-                
-                result = session.execute(query).fetchall()
-                results.append([table_name, result])
-        return results
-    except Exception as error:
-        logger.error(f"Error occured while querying for {columns}")
-    finally:
-        session.close()
-
-def query_all_tables_in_selected_database_for_stock_data(database_name: str, filters: list[tuple]):
-    """
-    Queries all tables within the specified database, applying given filters, 
-    and retrieves stock data as StockRecord instances.
-
-    Args:
-        database_name (str): The name of the database to query.
-        filters (list[tuple]): A list of tuples where each tuple contains the column name, 
-                               the operator, and the value to filter by, e.g., ('status', operators.eq, 'pending').
-
-    Returns:
-        list: A list of tuples where each tuple contains a table name and a list of StockRecord instances.
-    """
-    _, metadata, engine = get_database_variables_by_name(database_name)
-    session = sessionmaker(bind=engine)()
-    results = []
-    
-    try:
-        metadata.reflect(bind=engine)
-        for table_name in metadata.tables:
-            table = metadata.tables[table_name]
-            if all(col in table.columns for col, _, _ in filters):
-                query = select(table)  # Select all columns from the table
-
-                if filters:
-                    conditions = [op(table.c[col], val) for col, op, val in filters]
-                    query = query.where(and_(*conditions))
-
-                raw_result = session.execute(query).fetchall()
-                
-                # Convert each row to a StockRecord instance
-                stock_records = [StockRecord.from_tuple(row) for row in raw_result]
-                results.append((table_name, stock_records))
-
-        return results
-    except Exception as error:
-        logger.error(f"Error occurred while querying for stock data in {database_name}: {error}")
-        return None
-    finally:
-        session.close()
-
+from data.database_helper import add_stock_data_to_selected_database_table
+from utils.logger_script import logger
 def get_stock_data_from_selected_database_table(database_name: str, table_name: str, stock_data_uid: str):
     """
     Fetches stock record data from a specified table within a given database based on a unique stock data identifier.
@@ -124,35 +50,66 @@ def get_stock_data_from_selected_database_table(database_name: str, table_name: 
     finally:
         session.close()
 
-class StockHandler:
-    CHECK_TIME = 15 # seconds
-    pending = []
 
-def query_pending_stock_records(scheduler: sched.scheduler):    
-    # schedule the next call first
-    scheduler.enter(StockHandler.CHECK_TIME, 1, query_pending_stock_records, (scheduler,))
-    # Example of using different operators with new filters parameter
-    pending_transactions = query_all_tables_in_selected_database_for_stock_data(
-        database_name=DatabasesNames.transactions.value,
-        filters=[
-            ('status', operators.eq, 'pending')
-        ],
-    )
-    StockHandler.pending = pending_transactions
-    
-    print("Database Results:")
-    for table_name, records in pending_transactions:
-        print(f"Data from {table_name}:")
-        for record in records:
-            print(record)
+def move_row_between_databases(from_database_name: str, to_database_name: str, table_name: str, row_id: str, delete_original: bool = False):
+    # Retrieve database variables for both source and target databases
+    _, metadata_from, engine_from = get_database_variables_by_name(from_database_name)
+    table_format_to, metadata_to, engine_to = get_database_variables_by_name(to_database_name)
 
-def change_pending(scheduler: sched.scheduler):
-    pass
+    if metadata_from is None or engine_from is None or metadata_to is None or engine_to is None:
+        logger.error(f"Error retrieving database variables for databases {from_database_name} and {to_database_name}")
+        logger.error("Stopping row move")
+        return
 
-def run_query_loop():
-    my_scheduler = sched.scheduler(time.monotonic, time.sleep)
-    my_scheduler.enter(StockHandler.CHECK_TIME, 1, query_pending_stock_records, (my_scheduler,))
-    # my_scheduler.enter(StockHandler.CHECK_TIME, 2, printer, (my_scheduler,))
-    my_scheduler.run()
+    # Create sessions for both source and target databases
+    Session_from = sessionmaker(bind=engine_from)
+    session_from = Session_from()
+
+    try:
+        # Fetch the row from the source database
+        table_from = metadata_from.tables[table_name]
+        query = select(table_from).where(table_from.c.uid == row_id)
+        row = session_from.execute(query).fetchone()
+
+        if row:
+            # Check if the target table exists, create if not
+            if table_name not in metadata_to.tables:
+                generate_table_by_id_for_selected_database(table_name, to_database_name)
+            
+            # Prepare data for insertion by converting the row into a dictionary
+            data_to_insert = row
+
+            # Insert the data into the target database
+            add_stock_data_to_selected_database_table(to_database_name, table_name, data_to_insert)
+
+            # Optionally delete the original record
+            if delete_original:
+                delete_stmt = table_from.delete().where(table_from.c.uid == row_id)
+                session_from.execute(delete_stmt)
+                session_from.commit()
+                logger.info(f"Deleted original row with ID {row_id} from {from_database_name}")
+
+            logger.info(f"Successfully moved row with ID {row_id} from {from_database_name} to {to_database_name}")
+        else:
+            logger.warning(f"No data found with UID {row_id} in {from_database_name}")
+
+    except Exception as error:
+        session_from.rollback()
+        logger.error(f"Failed to move row: {error}")
+    finally:
+        session_from.close()
+
+# class StockHandler:
+#     CHECK_TIME = 15 # seconds
+#     pending = []
+
+# def change_pending(scheduler: sched.scheduler):
+#     pass
+
+# def run_query_loop():
+#     my_scheduler = sched.scheduler(time.monotonic, time.sleep)
+#     my_scheduler.enter(StockHandler.CHECK_TIME, 1, query_pending_stock_records, (my_scheduler,))
+#     # my_scheduler.enter(StockHandler.CHECK_TIME, 2, printer, (my_scheduler,))
+#     my_scheduler.run()
 
 
