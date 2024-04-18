@@ -125,7 +125,7 @@ def get_stock_data_from_selected_database_table(database_name: str, table_name: 
         session.close()
 
 class StockHandler:
-    CHECK_TIME = 5 # seconds
+    CHECK_TIME = 15 # seconds
     pending = []
 
 def query_pending_stock_records(scheduler: sched.scheduler):    
@@ -138,7 +138,7 @@ def query_pending_stock_records(scheduler: sched.scheduler):
             ('status', operators.eq, 'pending')
         ],
     )
-    StockHandler.pending.append(pending_transactions)
+    StockHandler.pending = pending_transactions
     
     print("Database Results:")
     for table_name, records in pending_transactions:

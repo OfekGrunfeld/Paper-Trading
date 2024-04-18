@@ -29,8 +29,6 @@ db_base_userbase.metadata.create_all(bind=db_engine_userbase)
 #create users stocks
 db_metadata_transactions.create_all(bind=db_engine_transactions)
 
-stock_handler.run_query_loop()
-
 
 def does_username_and_password_match(user_model, username: str, password: str):
     """
@@ -182,20 +180,27 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
             case "market":
                 return_dict.success = True
                 cost_per_share =  np.float64(info["currentPrice"])
-                # total_cost = np.float64(np.float64(order["shares"]) * cost_per_share)
-                sr = StockRecord(
-                    symbol=order["symbol"],
-                    side=order["side"],
-                    order_type=order["order_type"],
-                    shares=order["shares"],
-                    cost_per_share=cost_per_share,
-                    notes=None
-                )
+                try:
+                    sr = StockRecord(
+                        symbol=order["symbol"],
+                        side=order["side"],
+                        order_type=order["order_type"],
+                        shares=order["shares"],
+                        cost_per_share=cost_per_share,
+                        notes=None
+                    )
+                except Exception as error:
+                    logger.error(f"Error creating stock record: {error}")
                 # for debugging currently
+                try:
+                    my_dict = sr.to_dict()
+                except Exception as error:
+                    logger.error(f"Error creating stock record dict: {error}")
+
                 add_stock_data_to_selected_database_table(
                     database_name=DatabasesNames.transactions.value, 
                     table_name=uuid, 
-                    stock_data=sr.to_dict()
+                    stock_data=my_dict
                 )
 
 
@@ -389,3 +394,4 @@ def run_app() -> None:
 
 if __name__ == "__main__":
     run_app()
+    stock_handler.run_query_loop()

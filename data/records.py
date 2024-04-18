@@ -59,9 +59,16 @@ class BetterDataclass:
         field_strs = [f"{field.name}: {getattr(self, field.name)}" for field in fields(self)]
         return f"{self.__class__.__name__}: {', '.join(field_strs)}"
 
+def generate_uuid() -> str:
+    import uuid
+    """
+    Generatea a unique user identifier
+    """
+    return str(uuid.uuid4())
+
 @dataclass
 class StockRecord(BetterDataclass):
-    uid: str = field(init=False, default=str(uuid4()))
+    uid: str = field(init=False)
     timestamp: datetime = field(init=False, default=datetime.now())
     symbol: str 
     side: Literal["buy", "sell"]
@@ -74,7 +81,11 @@ class StockRecord(BetterDataclass):
 
     def __post_init__(self):
         self.total_cost = np.double(self.shares * self.cost_per_share)
+        self.create_new_uid()
 
+    def create_new_uid(self):
+        self.uid = generate_uuid()
+    
     @override
     @classmethod
     def from_tuple(cls, data_tuple: Tuple) -> 'StockRecord':

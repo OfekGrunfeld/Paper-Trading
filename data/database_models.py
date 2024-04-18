@@ -117,28 +117,31 @@ def _generate_table_by_id_for_selected_database(uuid: str, database_name: str, t
     # Reflect dataclass structure in table schema
     type_hints = get_type_hints(table_format)
     dataclass_columns = []
-    for field in fields(StockRecord):
-        if field.name.lower() == "uid":
-            dataclass_columns.append(Column("uid", String, primary_key=True, unique=True))
-            continue
-        nullable = False
-        field_type = type_hints[field.name]
-        if field_type == str:
-            column_type = String 
-        elif field_type == datetime:
-            column_type = DateTime
-        elif field_type == float or field_type == np.float64:
-            column_type = Double
-        elif hasattr(field_type, '__origin__'):  
-            if field_type.__origin__ is Literal:
-                column_type = String
-            elif field_type.__origin__ is Union and type(None) in field_type.__args__: # check for Optional
-                column_type = String
-                nullable = True 
-        else:
-            continue  # Skip fields with unhandled types
+    try:
+        for field in fields(StockRecord):
+            if field.name.lower() == "uid":
+                dataclass_columns.append(Column("uid", String, primary_key=True, unique=True, default=generate_uuid))
+                continue
+            nullable = False
+            field_type = type_hints[field.name]
+            if field_type == str:
+                column_type = String 
+            elif field_type == datetime:
+                column_type = DateTime
+            elif field_type == float or field_type == np.float64:
+                column_type = Double
+            elif hasattr(field_type, '__origin__'):  
+                if field_type.__origin__ is Literal:
+                    column_type = String
+                elif field_type.__origin__ is Union and type(None) in field_type.__args__: # check for Optional
+                    column_type = String
+                    nullable = True 
+            else:
+                continue  # Skip fields with unhandled types
 
-        dataclass_columns.append(Column(field.name, column_type, nullable=nullable))
+            dataclass_columns.append(Column(field.name, column_type, nullable=nullable))
+    except Exception as error:
+        logger.error(f"Error creating database columns {error}")
 
     new_table = Table(
         uuid,
@@ -155,18 +158,35 @@ def _generate_table_by_id_for_selected_database(uuid: str, database_name: str, t
 
 def add_stock_data_to_selected_database_table(database_name: str, table_name: str, stock_data: dict):
     # Get user's stocks table reference from the database
-    table_object: Table = get_table_object_from_selected_database_by_name(table_name, database_name)
-    if table_object is None:
-        generate_table_by_id_for_selected_database(table_name, database_name)
-        table_object = get_table_object_from_selected_database_by_name(table_name, database_name)
+    try:
+        table_object: Table = get_table_object_from_selected_database_by_name(table_name, database_name)
+        logger.debug(f"table object is {table_object}")
+        if table_object is None:
+            generate_table_by_id_for_selected_database(table_name, database_name)
+            table_object = get_table_object_from_selected_database_by_name(table_name, database_name)
+    except Exception as error:
+        logger.error(f"error getting table object: {error}")
 
     try:
         # Create insert statement for the user stock's data
         stmt = insert(table_object).values(stock_data)
         # Get the database, execute and commit
         db: Session = next(get_db(database_name))
-        db.execute(stmt)
-        db.commit()
+        # If somehow the generated uid is already in the database
+        while True:
+            try:
+                db.execute(stmt)
+                db.commit()
+                break
+            except Exception as error:
+                logger.warning(f"Got error while inserting stock data into database. Error: {error}")
+                logger.debug(f"Trying to insert with new stock record UID: {error}")
+                stock_data["uid"] = generate_uuid()
+        try:
+            obj = db.query(table_object).order_by(table_object.c.uid.desc()).first()
+        except Exception as error:
+            logger.error(f"Error where finding obj: {error}")
+        logger.debug(f"obj is {obj}")
         db.close()
     except Exception as error:
         logger.error(f"Could not add user's stock(s) data to database: {error}")
