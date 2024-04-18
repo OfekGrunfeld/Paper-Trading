@@ -1,70 +1,51 @@
+from uuid import uuid4
 from typing import Self, Literal, Optional, Tuple, override
 from dataclasses import dataclass, asdict, fields, field
 from datetime import datetime
 import numpy as np
 from enum import Enum
-from uuid import uuid4
 from utils.logger_script import logger
 
 class Statuses(Enum):
-    # for stock record creation - stocks that should be tracked
-    pending = "pending"
-    # for stocks that need to be tracked
-    tracked = "tracked"
-    # for stocks in the transaction history or 
-    archived = "archived"
+    pending = "pending"  # Indicates a stock record is waiting for action
+    tracked = "tracked"  # Indicates a stock record is currently being tracked
+    archived = "archived"  # Indicates a stock record is archived and not active
 
 class BetterDataclass:
     """
-    Added functionality to export dataclasses as dictionaries
-    and also make them from dictionaries
+    A base class that provides enhanced dataclass functionalities such as
+    converting to/from dictionaries and tuples.
     """
     def to_dict(self) -> dict:
+        """ Converts the dataclass instance to a dictionary. """
         return asdict(self)
     
     @classmethod
-    def from_dict(cls, data: dict) -> Self:
-        try:
-            # Ensure all keys in the dictionary match the dataclass fields
-            field_names: set[str] = {field.name for field in fields(cls)}
-            filtered_data: dict = {key: value for key, value in data.items() if key in field_names}
-            return cls(**filtered_data)
-        except Exception as error:
-            logger.error(f"Couldn't create new {cls.__name__} record from input dict {data}. Error: {error}")
-            return None
+    def from_dict(cls, data: dict):
+        """ Creates an instance from a dictionary. """
+        field_names = {field.name for field in fields(cls)}
+        field_data = {key: data[key] for key in field_names if key in data}
+        return cls(**field_data)
         
     def to_tuple(self) -> Tuple:
-        """
-        Converts the BetterDataclass instance into a tuple.
-        """
-        return tuple(getattr(self, f.name) for f in fields(self))
+        """ Converts the dataclass instance to a tuple. """
+        return tuple(getattr(self, field.name) for field in fields(self))
     
     @classmethod
-    def from_tuple(cls, data_tuple: Tuple) -> 'StockRecord':
+    def from_tuple(cls, data_tuple: Tuple) -> 'BetterDataclass':
         """
-        Creates an instance of BetterDataclass from a tuple by mapping tuple values to the fields.
-
-        Args:
-            data_tuple (Tuple): A tuple containing all the necessary fields for BetterDataclass.
-
-        Returns:
-            BetterDataclass: An instance of BetterDataclass initialized from the tuple.
+        Converts a tuple containing ALL the necessary fields to a dataclass instance
         """
-        field_names = [f.name for f in fields(cls)]
-        field_dict = {field: data_tuple[i] for i, field in enumerate(field_names) if i < len(data_tuple)}
+        field_dict = {field.name: value for field, value in zip(fields(cls), data_tuple)}
         return cls(**field_dict)
     
     def __str__(self):
-        # Build a string representation dynamically using field names and values
-        field_strs = [f"{field.name}: {getattr(self, field.name)}" for field in fields(self)]
-        return f"{self.__class__.__name__}: {', '.join(field_strs)}"
+        """ Generates a string representation of the instance. """
+        return f"{self.__class__.__name__}({', '.join(f'{f.name}={getattr(self, f.name)}' for f in fields(self))})"
 
 def generate_uuid() -> str:
-    import uuid
-    """
-    Generatea a unique user identifier
-    """
-    return str(uuid.uuid4())
+    """ Generates a unique identifier using UUID4. """
+    return str(uuid4())
 
 @dataclass
 class StockRecord(BetterDataclass):
@@ -80,8 +61,9 @@ class StockRecord(BetterDataclass):
     notes: Optional[str] = None
 
     def __post_init__(self):
+        """ Calculates the total cost after the stock record is initialized. """
         self.total_cost = np.double(self.shares * self.cost_per_share)
-        self.create_new_uid()
+        self.uid = generate_uuid()
 
     def create_new_uid(self):
         self.uid = generate_uuid()

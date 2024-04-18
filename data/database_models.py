@@ -1,5 +1,4 @@
 import uuid
-from enum import Enum
 from typing import Union, get_type_hints, Literal
 from dataclasses import fields
 from datetime import datetime
