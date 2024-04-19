@@ -3,21 +3,25 @@ from typing import Union, get_type_hints, Literal
 from dataclasses import fields
 from datetime import datetime
 from dataclasses import dataclass
+from enum import Enum
 
-from sqlalchemy import insert, Column, String, Table, DateTime, Double, Engine, MetaData
+from sqlalchemy import insert, Column, String, Table, DateTime, Double, Engine, MetaData, inspect
 import numpy as np
 
-from data.database import db_base_userbase, DatabasesNames 
+from data.database import DatabasesNames
+from data.database import (db_base_userbase,
+                           db_metadata_transactions, db_engine_transactions,
+                           db_metadata_portfolios, db_engine_portfolios)
 from utils.logger_script import logger
 from utils.constants import START_BALANCE
 from data.records import StockRecord
-from data.database_helper import get_database_variables_by_name
 
 def generate_uuid() -> str:
     """
     Generatea a unique user identifier
     """
     return str(uuid.uuid4())
+
 
 class Userbase(db_base_userbase):
     """
@@ -39,6 +43,18 @@ class Userbase(db_base_userbase):
             return f"uuid: {self.uuid}, email: {self.email}, username: {self.username}, password: {self.password}, balance: {self.balance}"
         except Exception as error:
             return f"Failed creating string: {error}"
+
+class UserIdentifiers(Enum):
+    uuid = "uuid"
+    email = "email"
+    username = "username"
+    password = "password"
+    balance = "balance"
+
+    @classmethod
+    def __contains__(cls, item):
+        return item in (member.value for member in cls)
+
 
 def generate_table_by_id_for_selected_database(uuid: str, database_name: str):
     table_format, metadata, engine = get_database_variables_by_name(database_name)
@@ -107,3 +123,46 @@ def _generate_table_by_id_for_selected_database(uuid: str, database_name: str, t
         logger.debug(f"Successfully added table to {database_name} {uuid}")
     except Exception as error:
         logger.error(f"Error raised while adding table {uuid} to {database_name}. Error: {error}")
+
+def get_database_variables_by_name(database_name: str):
+    """
+    Retrieves configuration variables for a specified database by its name.
+
+    This function dynamically matches the `database_name` to the corresponding
+    SQLAlchemy `Table`, `MetaData`, and `Engine` configurations based on predefined
+    database settings. It is designed to facilitate the connection and interaction
+    with different database schemas managed within the application.
+
+    Args:
+        `database_name` (str): The name of the database for which to retrieve configuration.
+                               This should be one of the values specified in `DatabasesNames`.
+
+    Returns:
+        tuple: A tuple containing three elements in the order:
+               (table_format, metadata, engine)
+               - `table_format` (`dataclass`): The dataclass associated with the database tables.
+               - `metadata` (`MetaData`): The metadata object associated with the database.
+               - `engine` (`Engine`): The database engine object for executing queries.
+    """
+     
+    table_format = None
+    metadata = None
+    engine = None
+    database_name = database_name.lower()
+
+    match(database_name):
+        case DatabasesNames.transactions.value:
+            table_format: dataclass = StockRecord
+            metadata: MetaData = db_metadata_transactions
+            engine: Engine = db_engine_transactions
+        
+        case DatabasesNames.portfolios.value:
+            table_format: dataclass = StockRecord
+            metadata: MetaData = db_metadata_portfolios
+            engine: Engine = db_engine_portfolios
+        
+        case _:
+            logger.error(f"Couldn't find database {database_name} or it is not supported")
+            return
+    
+    return (table_format, metadata, engine)

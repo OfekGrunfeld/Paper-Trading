@@ -1,71 +1,26 @@
-from typing import Union
+from typing import Union, List, Tuple
+from collections import Counter
 from dataclasses import dataclass
 
-from sqlalchemy import insert, Engine, MetaData, Table, select
+from sqlalchemy import insert, Engine, MetaData, Table, select, delete
 from sqlalchemy.orm import sessionmaker
 
-from data.database import DatabasesNames
-from data.database import (db_metadata_transactions, db_engine_transactions,
-                           db_metadata_portfolios, db_engine_portfolios)
 from data.records import StockRecord
-from data.database_models import generate_table_by_id_for_selected_database
-from data.query_helper import does_row_exist_in_table
+from data.database_models import generate_table_by_id_for_selected_database, get_database_variables_by_name
+from data.query_helper import does_row_exist_in_table, get_user_shares_by_symbol
 from utils.logger_script import logger
-
-def get_database_variables_by_name(database_name: str):
-    """
-    Retrieves configuration variables for a specified database by its name.
-
-    This function dynamically matches the `database_name` to the corresponding
-    SQLAlchemy `Table`, `MetaData`, and `Engine` configurations based on predefined
-    database settings. It is designed to facilitate the connection and interaction
-    with different database schemas managed within the application.
-
-    Args:
-        `database_name` (str): The name of the database for which to retrieve configuration.
-                               This should be one of the values specified in `DatabasesNames`.
-
-    Returns:
-        tuple: A tuple containing three elements in the order:
-               (table_format, metadata, engine)
-               - `table_format` (`dataclass`): The dataclass associated with the database tables.
-               - `metadata` (`MetaData`): The metadata object associated with the database.
-               - `engine` (`Engine`): The database engine object for executing queries.
-    """
-     
-    table_format = None
-    metadata = None
-    engine = None
-    database_name = database_name.lower()
-
-    match(database_name):
-        case DatabasesNames.transactions.value:
-            table_format: dataclass = StockRecord
-            metadata: MetaData = db_metadata_transactions
-            engine: Engine = db_engine_transactions
-        
-        case DatabasesNames.portfolios.value:
-            table_format: dataclass = StockRecord
-            metadata: MetaData = db_metadata_portfolios
-            engine: Engine = db_engine_portfolios
-        
-        case _:
-            logger.error(f"Couldn't find database {database_name} or it is not supported")
-            return
-    
-    return (table_format, metadata, engine)
 
 def get_table_object_from_selected_database_by_name(table_name: str, database_name: str) -> Union[Table, None]:
     try:
-        table_format, metadata, engine = get_database_variables_by_name(database_name)
+        _, metadata, engine = get_database_variables_by_name(database_name)
         if metadata is not None:
             table_object = metadata.tables[table_name]
             return table_object
     except Exception as error:
-        logger.warning(f"Could not find table {table_name} in user's stocks database: {error}")
+        logger.warning(f"Could not find table {table_name} in {database_name} database: {error}")
         return None
 
-def add_stock_data_to_selected_database_table(database_name: str, table_name: str, stock_data: tuple):
+def add_stock_data_to_selected_database_table(database_name: str, table_name: str, stock_data: tuple) -> bool:
     """
     Add stock data to a selected database table. It first checks if the UID already exists in the table,
     and if not, it adds the stock data.
@@ -74,40 +29,52 @@ def add_stock_data_to_selected_database_table(database_name: str, table_name: st
         database_name (str): The name of the database.
         table_name (str): The name of the table where data is to be added.
         stock_data (dict): The stock data to be inserted into the table.
+    
+    Returns:
+        bool: Success of the operation:
+            `True` if the stock data was added successfully
+            `False` if the stock data was not added
     """
-    uid = stock_data[0]
-    if uid is None:
-        logger.error("UID is missing from stock data, cannot proceed.")
-        return
 
+    uid = stock_data["uid"]
+
+    # Checking if the table exists if not then generate
+    while True:
+        table_object = get_table_object_from_selected_database_by_name(table_name, database_name)
+        if table_object is None:
+            logger.error("Table object not found or table does not exist.")
+            generate_table_by_id_for_selected_database(database_name=database_name, uuid=table_name)
+        else:
+            break
     # Checking if the UID already exists in the table
     if does_row_exist_in_table(database_name, table_name, uid):
         logger.info(f"UID {uid} already exists in {table_name}. No data added to prevent duplication.")
-        return
+        return False
 
     # Proceed to add data if UID does not exist
     _, _, engine = get_database_variables_by_name(database_name)
     Session = sessionmaker(bind=engine)
     db = Session()
 
+    flag = False
     try:
-        table_object = get_table_object_from_selected_database_by_name(table_name, database_name)
-        if table_object is None:
-            logger.error("Table object not found or table does not exist.")
-            return
+        
 
         # Insert the stock data
         stmt = insert(table_object).values(stock_data)
         db.execute(stmt)
         db.commit()
-        logger.info(f"Successfully added stock data with UID {uid} to {table_name} in {database_name}.")
+        logger.debug(f"Successfully added stock data with UID {uid} to {table_name} in {database_name}.")
+        flag = True
     except Exception as error:
         db.rollback()
         logger.error(f"Failed to insert stock data: {error}")
+        flag = False
     finally:
         db.close()
+        return flag
 
-def get_stock_data_from_selected_database_table(database_name: str, table_name: str, stock_data_uid: str):
+def get_stock_data_from_selected_database_table(database_name: str, table_name: str, stock_data_uid: str) -> Union[StockRecord, None]:
     """
     Fetches stock record data from a specified table within a given database based on a unique stock data identifier.
 
@@ -151,7 +118,6 @@ def get_stock_data_from_selected_database_table(database_name: str, table_name: 
         return None
     finally:
         session.close()
-
 
 def move_row_between_databases(from_database_name: str, to_database_name: str, table_name: str, row_id: str, delete_original: bool = False):
     # Retrieve database variables for both source and target databases
@@ -201,3 +167,65 @@ def move_row_between_databases(from_database_name: str, to_database_name: str, t
     finally:
         session_from.close()
 
+def get_all_symbols_count(database_name: str, uuid: str, symbols: List[str]) -> List[Tuple[str, int]]:
+    """
+    Retrieves the count of shares for each symbol a user has, summing up all buy transactions.
+
+    Args:
+        database_name (str): The name of the database where the stock records are stored.
+        uuid (str): The UUID of the user whose shares are to be queried.
+        symbols (List[str]): A list of symbols to query for.
+
+    Returns:
+        List[Tuple[str, int]]: A list of tuples, each containing a symbol and the total count of shares for that symbol.
+        Ensures all queried symbols are returned with a count, defaulting to 0 if no shares are found.
+    """
+    # Initialize all symbols with a count of 0 to ensure all are included in the output
+    symbol_counts = Counter({symbol: 0 for symbol in symbols})
+
+    for symbol in symbols:
+        shares_list = get_user_shares_by_symbol(database_name, uuid, symbol)
+        for _, shares in shares_list:
+            symbol_counts[symbol] += shares
+
+    return list(symbol_counts.items())
+
+def remove_row_by_uid(database_name: str, table_name: str, uid: str) -> bool:
+    """
+    Removes a row identified by UID from the specified table in the specified database.
+
+    Args:
+        database_name (str): The name of the database containing the table.
+        table_name (str): The name of the table from which the row will be deleted.
+        uid (str): The unique identifier of the row to be removed.
+
+    Returns:
+        bool: True if the row was successfully deleted, False otherwise.
+    """
+    _, metadata, engine = get_database_variables_by_name(database_name)
+    
+    if not metadata or table_name not in metadata.tables:
+        logger.error(f"Table {table_name} does not exist in {database_name}.")
+        return False
+
+    table = metadata.tables[table_name]
+    session = sessionmaker(bind=engine)()
+
+    try:
+        # Create delete statement for the row with the given UID
+        delete_stmt = delete(table).where(table.c.uid == uid)
+        result = session.execute(delete_stmt)
+        session.commit()
+
+        if result.rowcount:
+            logger.debug(f"Successfully deleted row with UID {uid} from {table_name}.")
+            return True
+        else:
+            logger.warning(f"No row with UID {uid} found in {table_name}.")
+            return False
+    except Exception as error:
+        session.rollback()
+        logger.error(f"Failed to delete row with UID {uid} from {table_name}: {error}")
+        return False
+    finally:
+        session.close()

@@ -13,12 +13,14 @@ from emails.authenticate_email import is_valid_email_external
 from utils.response import Response
 from utils.logger_script import logger
 from utils.constants import HOST_IP, HOST_PORT 
-from data.database_models import Userbase, add_stock_data_to_selected_database_table
+from data.database_models import Userbase
+from data.database_helper import add_stock_data_to_selected_database_table
 from data.database import (db_base_userbase, db_engine_userbase,
                       db_engine_transactions, db_metadata_transactions,
                       get_db_userbase,
                       DatabasesNames)
 from data import StockRecord
+from data.stock_handler import StockHandler
 import data.stock_handler as stock_handler
 import emails.send_email as send_email
 
@@ -47,15 +49,15 @@ def does_username_and_password_match(user_model, username: str, password: str):
     except Exception as error:
         return False
 
-@papertrading_app.middleware("http")
-async def add_process_time_header(request: Request, call_next):
-    try:
-        request.state.data = decrypt(request.state.data)
-    except Exception as error:
-        # logger.warning(f"Either there is no data in request state or decryption has failed. Error: {error}")
-        pass
-    response = await call_next(request)
-    return response
+# @papertrading_app.middleware("http")
+# async def decrypt_messages(request: Request, call_next):
+#     try:
+#         request.state.data = decrypt(request.state.data)
+#     except Exception as error:
+#         # logger.warning(f"Either there is no data in request state or decryption has failed. Error: {error}")
+#         pass
+#     response = await call_next(request)
+#     return response
 
 @papertrading_app.get("/")
 def root():
@@ -164,12 +166,10 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
     try:
         uuid, order = decrypt(uuid), decrypt(order)
         return_dict = Response()
-
-        try:
-            logger.debug(f"Got order: {order} from user {uuid}")
-        except Exception as error:
-            logger.error(f"Format of order is wrong: {order}. Error: {error}")
-
+        # try:
+        #     logger.debug(f"Got order: {order} from user {uuid}")
+        # except Exception as error:
+        #     logger.error(f"Format of order is wrong: {order}. Error: {error}")
         try:
             info = yf.Ticker(order["symbol"]).info
         except Exception as error:
@@ -192,24 +192,7 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
                 except Exception as error:
                     logger.error(f"Error creating stock record: {error}")
                 # for debugging currently
-                try:
-                    my_dict = sr.to_dict()
-                except Exception as error:
-                    logger.error(f"Error creating stock record dict: {error}")
-
-                add_stock_data_to_selected_database_table(
-                    database_name=DatabasesNames.transactions.value, 
-                    table_name=uuid, 
-                    stock_data=my_dict
-                )
-
-
-                saved_user = db.query(Userbase).filter(Userbase.uuid == uuid).first()
-                
-                bal = saved_user.balance
-                saved_user.balance = bal - sr.total_cost
-                db.commit()
-                logger.debug(f"Updated {uuid}'s balance to: {saved_user.balance}")
+                StockHandler.deal_with_transaction(sr, uuid)
             
             case _:
                 return_dict.error = f"Invalid or unsupported order type"
@@ -217,7 +200,7 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
         
         return return_dict
     except Exception as error:
-        logger.error(f"Error submitting order {error}")
+        logger.error(f"Error submitting order. Error: {traceback.format_exc()}")
         return None
 
 """ EVERYTHING BELOW HERE IS NOT UPDATED FOR COMMUNICATION IN THE ENCRYPTION"""
@@ -393,6 +376,9 @@ def run_app() -> None:
     )
 
 if __name__ == "__main__":
-    stock_handler.test_move(DatabasesNames.transactions.value, DatabasesNames.portfolios.value)
+    # stock_handler.test_move(DatabasesNames.transactions.value, DatabasesNames.portfolios.value)
+    # from data.stock_handler import StockHandler
+    # StockHandler.sell_shares("3b4ed075-3848-40d2-9dc4-d3fd831c0ac5", "NVDA", 68)
     run_app()
+    
     

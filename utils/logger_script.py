@@ -1,5 +1,6 @@
 
 import logging
+import urllib3
 
 # code i did not write down
 class ColoredFormatter(logging.Formatter):
@@ -71,6 +72,8 @@ def instantiate_logger() -> logging.Logger:
     :returns: logger - logging.Logger instance
     """
     try:
+        # disable warning from urlib as the certificate is not valid
+        urllib3.disable_warnings()
         # Create logger
         logger = logging.getLogger(__name__)
         logger.setLevel(logging.DEBUG)
