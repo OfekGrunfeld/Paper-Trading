@@ -1,4 +1,4 @@
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Optional
 from enum import Enum
 import numpy as np
 
@@ -8,8 +8,9 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.sql import operators
 from data.database import DatabasesNames, get_db
 from data.database_models import Userbase, UserIdentifiers, get_database_variables_by_name
-from data.records import StockRecord
+from records.stock_record import StockRecord
 from utils.logger_script import logger
+from encryption.userbase_encryption import encode_username
 
 def query_all_tables_in_selected_database(database_name: str, columns: list[str], filters: list[tuple]):
     _, metadata, engine = get_database_variables_by_name(database_name)
@@ -190,3 +191,44 @@ def get_user_shares_by_symbol(database_name: str, uuid: str, symbol: str) -> Lis
         return []
     finally:
         session.close()
+
+def user_exists(email: Optional[str] = None, uuid: Optional[str] = None, username: Optional[str] = None) -> bool:
+    """
+    Checks if a user exists in the userbase based on email, UUID, or username.
+
+    Args:
+        email (Optional[str]): The email of the user to check.
+        uuid (Optional[str]): The UUID of the user to check.
+        username (Optional[str]): The username of the user to check.
+
+    Returns:
+        bool: True if the user exists, False otherwise.
+    """
+    if not any([email, uuid, username]):
+        logger.error("No identifier provided to check user existence.")
+        return False
+
+    session: Session = next(get_db(DatabasesNames.userbase.value))
+
+    try:
+        query = session.query(Userbase)
+        
+        if uuid:
+            query = query.filter(Userbase.uuid == uuid)
+        elif email:
+            query = query.filter(Userbase.email == email.lower())  # Normalize email to lowercase
+        elif username:
+            query = query.filter(Userbase.username == encode_username(username))
+
+        # Check if at least one matching user exists
+        user_exists = query.first() is not None
+        return user_exists
+
+    except Exception as error:
+        logger.error(f"Failed to query userbase: {error}")
+        return False
+
+    finally:
+        session.close()
+
+

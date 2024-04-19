@@ -1,14 +1,14 @@
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Optional
 from collections import Counter
-from dataclasses import dataclass
 
-from sqlalchemy import insert, Engine, MetaData, Table, select, delete
+from sqlalchemy import insert, Table, select, delete
 from sqlalchemy.orm import sessionmaker
 
-from data.records import StockRecord
-from data.database_models import generate_table_by_id_for_selected_database, get_database_variables_by_name
+from records.stock_record import StockRecord
+from data.database_models import generate_table_by_id_for_selected_database, get_database_variables_by_name, Userbase
 from data.query_helper import does_row_exist_in_table, get_user_shares_by_symbol
 from utils.logger_script import logger
+from encryption.userbase_encryption import encode_username, encode_password
 
 def get_table_object_from_selected_database_by_name(table_name: str, database_name: str) -> Union[Table, None]:
     try:
@@ -229,3 +229,32 @@ def remove_row_by_uid(database_name: str, table_name: str, uid: str) -> bool:
         return False
     finally:
         session.close()
+
+def create_user_model(email: Optional[str], username: str, password: str) -> Union[Userbase, None]:
+    """
+    Creates a new user model by optionally assigning a provided email, and always assigning an encoded username and encoded password.
+    Email is optional but username and password are mandatory for user creation.
+
+    Args:
+        email (Optional[str]): The email address of the user. It is converted to lowercase before being stored. Can be None.
+        username (str): The username of the user. It is encoded using SHA-256 hashing before being stored.
+        password (str): The password of the user. It is encoded using MD5 hashing before being stored.
+
+    Returns:
+        Userbase or None: Returns a `Userbase` instance initialized with the provided credentials if the required inputs (username and password) are valid.
+                          Returns `None` if the required inputs are not provided, indicating incomplete user data.
+    """
+    if username is None or password is None:
+        logger.error("Cannot create a user without a username or password.")
+        return None
+
+    user_model = Userbase()
+
+    # Normalize and encode the user credentials
+    if email:
+        user_model.email = email.lower()  # Normalize email to lowercase
+
+    user_model.username = encode_username(username)
+    user_model.password = encode_password(password) 
+
+    return user_model

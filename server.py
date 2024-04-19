@@ -1,27 +1,26 @@
 from typing import List, Dict
-import datetime
 import traceback
 
 import uvicorn
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 import yfinance as yf
 import numpy as np
 
-from utils import encode_string, decrypt
+# from utils import encode_string
 from emails.authenticate_email import is_valid_email_external
-from utils.response import Response
+from records.server_response import ServerResponse
 from utils.logger_script import logger
 from utils.constants import HOST_IP, HOST_PORT 
 from data.database_models import Userbase
-from data.database_helper import add_stock_data_to_selected_database_table
 from data.database import (db_base_userbase, db_engine_userbase,
                       db_engine_transactions, db_metadata_transactions,
-                      get_db_userbase,
-                      DatabasesNames)
-from data import StockRecord
-from data.stock_handler import StockHandler
-import data.stock_handler as stock_handler
+                      get_db_userbase)
+from data.database_helper import create_user_model
+from data.query_helper import user_exists
+from records.stock_record import StockRecord
+from stocks.stock_handler import StockHandler
+from encryption import decrypt
 import emails.send_email as send_email
 
 # Create FastAPI app
@@ -32,23 +31,6 @@ db_base_userbase.metadata.create_all(bind=db_engine_userbase)
 db_metadata_transactions.create_all(bind=db_engine_transactions)
 
 
-def does_username_and_password_match(user_model, username: str, password: str):
-    """
-    Checks if the username and password entered match the ones in the database
-    
-    Parameters:
-        :param user_model: An existing user in the database
-        :param username: username
-        :param password: password
-    
-    Returns:
-        True: if the encoded username matches the user's username in the database and the encoded password matches the user's password in the database
-    """
-    try:
-        return encode_string(username) == user_model.username and encode_string(password) == user_model.password
-    except Exception as error:
-        return False
-
 # @papertrading_app.middleware("http")
 # async def decrypt_messages(request: Request, call_next):
 #     try:
@@ -56,25 +38,23 @@ def does_username_and_password_match(user_model, username: str, password: str):
 #     except Exception as error:
 #         # logger.warning(f"Either there is no data in request state or decryption has failed. Error: {error}")
 #         pass
-#     response = await call_next(request)
-#     return response
+#     ServerResponse = await call_next(request)
+#     return ServerResponse
 
 @papertrading_app.get("/")
 def root():
     return {"message": "Hello World"}
 
-
 @papertrading_app.post("/sign_up")
 def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db_userbase)) -> dict[str, str | bool]:
     try: 
         logger.debug(f"Received sign up request")
-        return_dict = Response()
-        user_model = Userbase()
-
+        return_dict = ServerResponse()
+        
         email, username, password = decrypt(email), decrypt(username), decrypt(password)
-        logger.debug(f"Email: {email}, username: {username}, password: {password}")
+
         # filter out using email or username that is already being used
-        if db.query(Userbase).filter(Userbase.email == email).first() is not None:
+        if user_exists(email=email):
             return_dict.error = "Failed to sign up. Email associated with existing user"
         else:
             # save email as string, save username and password encoded sha256 to database
@@ -86,10 +66,7 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
             else:
                 logger.info(f"Email exists: {email}")
                 
-                # create user with email, username and password 
-                user_model.email = email.lower()
-                user_model.username = encode_string(username)
-                user_model.password = encode_string(password)
+                user_model = create_user_model(email, username, password)
 
                 # add user to database
                 try:
@@ -98,7 +75,7 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
                     db.commit()
                     logger.info(f"Added new user to the database: {user_model.email}")
                 except Exception as error:
-                    logger.error(f"Failed adding user to database: {error}")
+                    logger.error(f"Failed adding user to database. Error: {error}")
                     return_dict.reset()
                     return_dict.error = "Failed adding user to database"
                     raise HTTPException(
@@ -107,10 +84,10 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
                     )
                     
                 # send mail to user
-                flag: bool = send_email.send_email(email, send_email.Message_Types["sign_up"])
-                if not flag:
-                    # Unsure weather to return false if email failed to send
-                    logger.warning(f"Failed sending email to user")
+                # flag: bool = send_email.send_email(email, send_email.Message_Types["sign_up"])
+                # if not flag:
+                #     # Unsure weather to return false if email failed to send
+                #     logger.warning(f"Failed sending email to user")
                 return_dict.success = True
     except Exception as error:
         logger.error(f"Unexpected error occured in sign up: {error}")
@@ -123,17 +100,15 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
 def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)):
     try: 
         logger.debug(f"Received sign in request")
-        return_dict = Response()
-        user_model = Userbase()
+        return_dict = ServerResponse()
 
         username, password = decrypt(username), decrypt(password)
 
         # create user model with username and password
-        user_model.username = encode_string(username)
-        user_model.password = encode_string(password)
+        user_model = create_user_model(username=username, password=password)
 
         # filter out using email or username that is already being used
-        if db.query(Userbase).filter(Userbase.username == user_model.username).first() is None:
+        if not user_exists(username=username):
             logger.debug(f"Failed to sign in {username}. Non-existing user")
             return_dict.error = "Failed to sign in. Non-existing user"
             raise HTTPException(
@@ -165,11 +140,8 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
 def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
     try:
         uuid, order = decrypt(uuid), decrypt(order)
-        return_dict = Response()
-        # try:
-        #     logger.debug(f"Got order: {order} from user {uuid}")
-        # except Exception as error:
-        #     logger.error(f"Format of order is wrong: {order}. Error: {error}")
+        return_dict = ServerResponse()
+
         try:
             info = yf.Ticker(order["symbol"]).info
         except Exception as error:
@@ -197,7 +169,6 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
             case _:
                 return_dict.error = f"Invalid or unsupported order type"
             
-        
         return return_dict
     except Exception as error:
         logger.error(f"Error submitting order. Error: {traceback.format_exc()}")
@@ -207,7 +178,7 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
 @papertrading_app.get("/get_user_by_username")
 def get_user_by_username(data: dict, db: Session = Depends(get_db_userbase)) -> List[Dict]:
     try:
-        return_dict = Response()
+        return_dict = ServerResponse()
         username = data["username"]
 
         # get user with uuid from database
@@ -248,7 +219,7 @@ def get_user_by_username(data: dict, db: Session = Depends(get_db_userbase)) -> 
 @papertrading_app.delete("/delete_user")
 def delete_user(data: dict, db: Session = Depends(get_db_userbase)):
     try: 
-        return_dict = Response()
+        return_dict = ServerResponse()
 
         uuid, username, password, = (data["uuid"], data["username"], data["password"])
         logger.debug(f"Received request to delete user: {username}")
@@ -285,7 +256,7 @@ def delete_user(data: dict, db: Session = Depends(get_db_userbase)):
 @papertrading_app.delete("/force_delete_user")
 def force_delete_user(data: dict, db: Session = Depends(get_db_userbase)):
     try: 
-        return_dict = Response()
+        return_dict = ServerResponse()
         # get user with uuid from database
         
         uuid = data["uuid"]
@@ -318,7 +289,7 @@ def force_delete_user(data: dict, db: Session = Depends(get_db_userbase)):
 @papertrading_app.put("/update_user")
 def update_user(uuid: str, username: str, password: str, new_username, new_password: str, db: Session = Depends(get_db_userbase)):
     try: 
-        return_dict = Response()
+        return_dict = ServerResponse()
         # don't update user if there is nothing to change
         if new_username == username and new_password == password:
             return_dict.message = "There is nothing to change"

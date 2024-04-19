@@ -1,17 +1,18 @@
 from typing import Union
-import numpy as np
 import copy 
+
 from sqlalchemy import update
 from sqlalchemy.orm.session import Session
+import numpy as np
 
 from data.database import DatabasesNames, get_db
 from data.database_models import UserIdentifiers, Userbase
-from data.records import StockRecord, Statuses
+from records.stock_record import StockRecord, Statuses
 from data.database_helper import (add_stock_data_to_selected_database_table, get_table_object_from_selected_database_by_name, 
                                   remove_row_by_uid)
 from data.query_helper import get_user_from_userbase, get_user_shares_by_symbol
 from utils.logger_script import logger
-from utils.yfinance_helper import get_symbol_info
+from stocks.yfinance_helper import get_symbol_info
 
 class StockHandler:
     CHECK_TIME = 15 # seconds
@@ -101,7 +102,7 @@ class StockHandler:
             
     
     @staticmethod
-    def sell_shares(uuid: str, symbol: str, shares: float) -> float:
+    def sell_shares(uuid: str, symbol: str, shares: np.double) -> np.double:
         """
         Sells shares from the user's portfolio by finding the shares with prices closest to the current market price.
         It reduces those shares from the transaction in the portfolio and calculates revenue based on the current market price.
@@ -109,7 +110,7 @@ class StockHandler:
         Args:
             uuid (str): The UUID of the user selling the shares.
             symbol (str): The symbol of the stock to sell.
-            shares_to_sell (float): The amount of shares to sell.
+            shares_to_sell (np.double): The amount of shares to sell.
 
         Returns:
             np.double: The revenue generated from selling the shares.

@@ -11,5 +11,6 @@ __pycache__/
 tester.py
 
 old/*
+encryption/*
 
 *.pem
