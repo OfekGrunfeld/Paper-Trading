@@ -32,8 +32,11 @@ class StockRecord(BetterDataclass):
 
     def __post_init__(self):
         """ Calculates the total cost after the stock record is initialized. """
-        self.total_cost = np.double(self.shares * self.cost_per_share)
+        self.update_total_cost()
         self.uid = generate_uuid()
 
     def create_new_uid(self):
         self.uid = generate_uuid()
+    
+    def update_total_cost(self):
+        self.total_cost = np.double(self.shares * self.cost_per_share)

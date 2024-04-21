@@ -20,7 +20,7 @@ from data.database_helper import create_user_model
 from data.query_helper import user_exists
 from records.stock_record import StockRecord
 from stocks.stock_handler import StockHandler
-from encryption import decrypt
+from encryption.decrypt import decrypt
 import emails.send_email as send_email
 
 # Create FastAPI app
@@ -70,7 +70,7 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
 
                 # add user to database
                 try:
-                    logger.info(f"Adding new user to the database: {user_model.email}")
+                    logger.debug(f"Adding new user to the database: {user_model.email}")
                     db.add(user_model)
                     db.commit()
                     logger.info(f"Added new user to the database: {user_model.email}")
@@ -105,7 +105,7 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
         username, password = decrypt(username), decrypt(password)
 
         # create user model with username and password
-        user_model = create_user_model(username=username, password=password)
+        user_model = create_user_model(None, username, password)
 
         # filter out using email or username that is already being used
         if not user_exists(username=username):
@@ -151,7 +151,10 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
         match(order["order_type"]):
             case "market":
                 return_dict.success = True
-                cost_per_share =  np.float64(info["currentPrice"])
+                if order["side"] == "sell":
+                    cost_per_share =  np.double(info["ask"])
+                else:
+                    cost_per_share = np.double(info["bid"])
                 try:
                     sr = StockRecord(
                         symbol=order["symbol"],
@@ -215,127 +218,127 @@ def get_user_by_username(data: dict, db: Session = Depends(get_db_userbase)) -> 
     finally:
         return return_dict.to_dict()
 
-# currently deleted with username and not email / both
-@papertrading_app.delete("/delete_user")
-def delete_user(data: dict, db: Session = Depends(get_db_userbase)):
-    try: 
-        return_dict = ServerResponse()
+# # currently deleted with username and not email / both
+# @papertrading_app.delete("/delete_user")
+# def delete_user(data: dict, db: Session = Depends(get_db_userbase)):
+#     try: 
+#         return_dict = ServerResponse()
 
-        uuid, username, password, = (data["uuid"], data["username"], data["password"])
-        logger.debug(f"Received request to delete user: {username}")
-        # get user with uuid from database
-        user_model = db.query(Userbase).filter(Userbase.uuid == uuid).first()
+#         uuid, username, password, = (data["uuid"], data["username"], data["password"])
+#         logger.debug(f"Received request to delete user: {username}")
+#         # get user with uuid from database
+#         user_model = db.query(Userbase).filter(Userbase.uuid == uuid).first()
         
-        # check if there is no such user
-        if user_model is None:
-            logger.debug(f"Failed to delete user {username}. Non-existing user ")
-            return_dict.error = "Failed to delete user. Non-existing user"
-            raise HTTPException(
-                status_code=404,
-                detail=return_dict.to_dict()
-            )
+#         # check if there is no such user
+#         if user_model is None:
+#             logger.debug(f"Failed to delete user {username}. Non-existing user ")
+#             return_dict.error = "Failed to delete user. Non-existing user"
+#             raise HTTPException(
+#                 status_code=404,
+#                 detail=return_dict.to_dict()
+#             )
         
-        # delete user if the username and password match the ones in the database
-        if does_username_and_password_match(user_model, username, password):
-            # delete user
-            db.query(Userbase).filter(Userbase.uuid == uuid).delete()
-            db.commit()
-            return_dict.data = "Deleted user successfully"
-            return_dict.success = True
-        else:
-            return_dict.error = "Could not deleted user as the username and password do not match"
-            return_dict.success = False
-    except Exception as error:
-        logger.error(f"Failed to delete user {username}. Error: {error}")
-        return_dict.reset()
-        return_dict.error = f"Failed to delete user. Internal server error"
-        return_dict.success = False
-    finally:
-        return return_dict.to_dict()
+#         # delete user if the username and password match the ones in the database
+#         if does_username_and_password_match(user_model, username, password):
+#             # delete user
+#             db.query(Userbase).filter(Userbase.uuid == uuid).delete()
+#             db.commit()
+#             return_dict.data = "Deleted user successfully"
+#             return_dict.success = True
+#         else:
+#             return_dict.error = "Could not deleted user as the username and password do not match"
+#             return_dict.success = False
+#     except Exception as error:
+#         logger.error(f"Failed to delete user {username}. Error: {error}")
+#         return_dict.reset()
+#         return_dict.error = f"Failed to delete user. Internal server error"
+#         return_dict.success = False
+#     finally:
+#         return return_dict.to_dict()
 
-@papertrading_app.delete("/force_delete_user")
-def force_delete_user(data: dict, db: Session = Depends(get_db_userbase)):
-    try: 
-        return_dict = ServerResponse()
-        # get user with uuid from database
+# @papertrading_app.delete("/force_delete_user")
+# def force_delete_user(data: dict, db: Session = Depends(get_db_userbase)):
+#     try: 
+#         return_dict = ServerResponse()
+#         # get user with uuid from database
         
-        uuid = data["uuid"]
-        user_model = db.query(Userbase).filter(Userbase.uuid == uuid).first()
+#         uuid = data["uuid"]
+#         user_model = db.query(Userbase).filter(Userbase.uuid == uuid).first()
         
-        # check if there is no such user
-        if user_model is None:
-            logger.debug(f"Failed to delete user {uuid}. Non-existing user ")
-            return_dict.error = "Failed to delete user. Non-existing user"
-            raise HTTPException(
-                status_code=404,
-                detail=return_dict.to_dict()
-            )
+#         # check if there is no such user
+#         if user_model is None:
+#             logger.debug(f"Failed to delete user {uuid}. Non-existing user ")
+#             return_dict.error = "Failed to delete user. Non-existing user"
+#             raise HTTPException(
+#                 status_code=404,
+#                 detail=return_dict.to_dict()
+#             )
         
-        # delete user
-        db.query(Userbase).filter(Userbase.uuid == uuid).delete()
-        db.commit()
-        # update return dict
-        return_dict.data = "Deleted user successfully"
-        return_dict.success = True
-    except Exception as error:
-        logger.error(f"Failed to delete user {uuid}. Error: {error}")
-        return_dict.reset()
-        return_dict.error = f"Failed to delete user. Internal server error"
-        return_dict.success = False
-    finally:
-        return return_dict.to_dict()
+#         # delete user
+#         db.query(Userbase).filter(Userbase.uuid == uuid).delete()
+#         db.commit()
+#         # update return dict
+#         return_dict.data = "Deleted user successfully"
+#         return_dict.success = True
+#     except Exception as error:
+#         logger.error(f"Failed to delete user {uuid}. Error: {error}")
+#         return_dict.reset()
+#         return_dict.error = f"Failed to delete user. Internal server error"
+#         return_dict.success = False
+#     finally:
+#         return return_dict.to_dict()
 
-# unupdated because function should be later removed
-@papertrading_app.put("/update_user")
-def update_user(uuid: str, username: str, password: str, new_username, new_password: str, db: Session = Depends(get_db_userbase)):
-    try: 
-        return_dict = ServerResponse()
-        # don't update user if there is nothing to change
-        if new_username == username and new_password == password:
-            return_dict.message = "There is nothing to change"
-            return_dict.success = False
-            return return_dict.to_dict()
+# # unupdated because function should be later removed
+# @papertrading_app.put("/update_user")
+# def update_user(uuid: str, username: str, password: str, new_username, new_password: str, db: Session = Depends(get_db_userbase)):
+#     try: 
+#         return_dict = ServerResponse()
+#         # don't update user if there is nothing to change
+#         if new_username == username and new_password == password:
+#             return_dict.message = "There is nothing to change"
+#             return_dict.success = False
+#             return return_dict.to_dict()
         
-        # get user with uuid from database
-        user_model = db.query(Userbase).filter(Userbase.uuid == uuid).first()
-        # raise exception if there is no such user
-        if user_model is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"ID: {uuid} does not exist"
-            )
-        # if username and password do not match user don't continue
-        if not does_username_and_password_match(user_model, username, password):
-            return_dict.message = "Username and password do not match with existing user"
-            return_dict.success = False
-            return return_dict.to_dict()
+#         # get user with uuid from database
+#         user_model = db.query(Userbase).filter(Userbase.uuid == uuid).first()
+#         # raise exception if there is no such user
+#         if user_model is None:
+#             raise HTTPException(
+#                 status_code=404,
+#                 detail=f"ID: {uuid} does not exist"
+#             )
+#         # if username and password do not match user don't continue
+#         if not does_username_and_password_match(user_model, username, password):
+#             return_dict.message = "Username and password do not match with existing user"
+#             return_dict.success = False
+#             return return_dict.to_dict()
         
-        # don't allow to change both username and password at the same time
-        # used return because if / elif would change the first 
-        if new_username != username and new_password != password:
-            return_dict.message = "Cannot update both username and password at the same time"
-            return_dict.success = False
-            return return_dict.to_dict()
+#         # don't allow to change both username and password at the same time
+#         # used return because if / elif would change the first 
+#         if new_username != username and new_password != password:
+#             return_dict.message = "Cannot update both username and password at the same time"
+#             return_dict.success = False
+#             return return_dict.to_dict()
         
-        # change username or password to new username or new password
-        if new_username != username:
-            user_model.username = encode_string(new_username)
-        elif new_password != password:
-            user_model.password = encode_string(new_password)
+#         # change username or password to new username or new password
+#         if new_username != username:
+#             user_model.username = encode_string(new_username)
+#         elif new_password != password:
+#             user_model.password = encode_string(new_password)
             
 
-        # add User to database
-        db.add(user_model)
-        db.commit()
+#         # add User to database
+#         db.add(user_model)
+#         db.commit()
 
-        return_dict.message = f"Updated user {username} successfully"
-        return_dict.success = True
-    except Exception as error:
-        return_dict.message = ""
-        return_dict.error = f"Failed to update user {error}"
-        return_dict.success = False
-    finally:
-        return return_dict.to_dict()
+#         return_dict.message = f"Updated user {username} successfully"
+#         return_dict.success = True
+#     except Exception as error:
+#         return_dict.message = ""
+#         return_dict.error = f"Failed to update user {error}"
+#         return_dict.success = False
+#     finally:
+#         return return_dict.to_dict()
 
 def run_app() -> None:
     uvicorn.run(

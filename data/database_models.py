@@ -5,7 +5,7 @@ from datetime import datetime
 from dataclasses import dataclass
 from enum import Enum
 
-from sqlalchemy import insert, Column, String, Table, DateTime, Double, Engine, MetaData, inspect
+from sqlalchemy import Column, String, Table, DateTime, Double, Engine, MetaData
 import numpy as np
 
 from data.database import DatabasesNames
@@ -14,7 +14,7 @@ from data.database import (db_base_userbase,
                            db_metadata_portfolios, db_engine_portfolios)
 from utils.logger_script import logger
 from utils.constants import START_BALANCE
-from data.records import StockRecord
+from records.stock_record import StockRecord
 
 def generate_uuid() -> str:
     """
@@ -36,7 +36,7 @@ class Userbase(db_base_userbase):
     username = Column(String, nullable=False, unique=True)
     password = Column(String, nullable=False)
 
-    balance = Column(Double, nullable=False, default=int(START_BALANCE)) 
+    balance = Column(Double, nullable=False, default=np.double(START_BALANCE)) 
 
     def __str__(self) -> str:
         try:

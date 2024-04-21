@@ -251,7 +251,7 @@ def create_user_model(email: Optional[str], username: str, password: str) -> Uni
     user_model = Userbase()
 
     # Normalize and encode the user credentials
-    if email:
+    if email and email != "" or email != None:
         user_model.email = email.lower()  # Normalize email to lowercase
 
     user_model.username = encode_username(username)

@@ -28,7 +28,6 @@ class StockHandler:
         if saved_user is None:
             logger.error(f"Could not retrieve user from userbase")
 
-        
         user_balance = saved_user.balance
 
         if stock_record.side == "buy":
@@ -56,11 +55,22 @@ class StockHandler:
 
                 if success_transactions and success_portfolio:
                     logger.debug(f"Successfully added transaction to transaction history and active portfolio of user {uuid}")
+                    logger.info(f"{uuid} successfully bought {stock_record.shares} shares, each for {stock_record.cost_per_share} and in total {stock_record.total_cost}")
                 else:
                     logger.error(f"Transaction from user {uuid} was not succcessful")
             else:
-                logger.warning(f"User {uuid} doesn't have enough money to buy {stock_record.shares} shares of {stock_record.symbol}.")
-                return
+                # Sell the amount of stocks the user can buy
+                logger.warning(f"User {uuid} doesn't have enough money to buy {stock_record.shares} shares of {stock_record.symbol}. \
+                               As they cost {stock_record.total_cost} and the user only has {user_balance}")
+                max_shares = np.double(user_balance / stock_record.cost_per_share)
+                
+                if max_shares >= 1:
+                    stock_record.shares = max_shares
+                    stock_record.update_total_cost()
+                    StockHandler.deal_with_transaction(stock_record, uuid)
+                    return
+                else:
+                    return
         elif stock_record.side == "sell":      
             # Get the portfolio's table object for querying
             table_object = get_table_object_from_selected_database_by_name(table_name=uuid, database_name=DatabasesNames.transactions.value)
@@ -96,9 +106,17 @@ class StockHandler:
                 logger.info(f"Successully sold {stock_record.shares} shares for a revenue of {revenue}")
             else:
                 logger.info(f"Failed to update transactions database with the sell transaction data")
+        
 
         # Update user balance 
-        saved_user.balance = user_balance
+        session: Session = next(get_db(DatabasesNames.userbase.value))
+        session.execute(
+            update(Userbase).
+            where(Userbase.uuid == uuid).
+            values(balance=user_balance)
+        )
+        session.commit() 
+        session.close()
             
     
     @staticmethod
@@ -122,11 +140,11 @@ class StockHandler:
 
         # Fetch the current market price for the symbol
         symbol_info = get_symbol_info(symbol)
-        if not symbol_info or 'currentPrice' not in symbol_info:
+        if not symbol_info or 'bid' not in symbol_info:
             logger.error("Failed to fetch current market price.")
             return (0, shares)
 
-        current_price = symbol_info['currentPrice']
+        current_price = symbol_info['bid']
 
         portfolio_session: Session = next(get_db(DatabasesNames.portfolios.value))
         transaction_session: Session = next(get_db(DatabasesNames.transactions.value))
@@ -134,10 +152,6 @@ class StockHandler:
         try:
             shares_list = get_user_shares_by_symbol(DatabasesNames.portfolios.value, uuid, symbol)
             total_shares = sum(shares for _, shares, _ in shares_list)
-
-            if total_shares < shares_to_sell:
-                logger.error("Not enough shares to sell.")
-                return (0, shares)
 
             revenue = 0
 
