@@ -2,7 +2,6 @@ import uvicorn
 from fastapi import FastAPI
 
 from utils.constants import HOST_IP, HOST_PORT 
-from data.database_models import Userbase
 from data.database import create_all_databases
 
 from routes import stocks_router, users_router

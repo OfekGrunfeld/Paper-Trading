@@ -3,10 +3,10 @@ from sqlalchemy.orm import Session
 
 from records.server_response import ServerResponse
 from utils.logger_script import logger
+from data.database import get_db_userbase, DatabasesNames
 from data.database_models import Userbase
-from data.database import get_db_userbase
 from data.database_helper import create_user_model
-from data.query_helper import user_exists
+from data.query_helper import user_exists, query_specific_columns_from_database_table
 from encryption.decrypt import decrypt
 
 users_router = APIRouter()
@@ -101,3 +101,21 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
     finally:
         logger.debug(f"sending back data: {return_dict.to_dict()}")
         return return_dict.to_dict()
+
+@users_router.get("/get_user_database_table/{database_name}")
+def get_user_database_table(database_name: str, uuid: str):
+    try:
+        return_dict = ServerResponse()
+        # uuid = decrypt(uuid)
+
+        logger.debug(f"Received user portfolio request for user: {uuid}")
+
+        results = query_specific_columns_from_database_table(database_name, uuid)
+        
+        return_dict.data = results
+    except Exception as error:
+        logger.error(f"Unexpected error occured in sign up: {error}")
+        return_dict.reset()
+        return_dict.error = "Internal Server Error"
+    finally:
+        return return_dict

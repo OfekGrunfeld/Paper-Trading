@@ -1,11 +1,11 @@
-from typing import Union, List, Tuple, Optional
+from typing import Union, List, Tuple, Optional, Any, Sequence
 from enum import Enum
 import numpy as np
 
 from sqlalchemy import Engine, MetaData, select, and_
+from sqlalchemy.engine.row import Row
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.sql import operators
 from data.database import DatabasesNames, get_db
 from data.database_models import Userbase, UserIdentifiers, get_database_variables_by_name
 from records.stock_record import StockRecord
@@ -231,4 +231,39 @@ def user_exists(email: Optional[str] = None, uuid: Optional[str] = None, usernam
     finally:
         session.close()
 
+def query_specific_columns_from_database_table(database_name: str, table_name: str, columns: list[str] = None) -> None | Sequence[Row[Any]]:
+    from sqlalchemy import inspect
+    from traceback import format_exc
+    
+    table_format, metadata, engine = get_database_variables_by_name(database_name)
+
+    table_object = metadata.tables.get(table_name)
+    if table_object is None:
+        logger.error(f"Could not retrieve {table_name} from {database_name}.")
+        return None
+
+    if columns is None:
+        # Fetch column names directly from the table object
+        columns = [column.name for column in inspect(table_object).columns]
+        # Remove the 'uid' column if it exists
+        columns.remove("uid")
+
+    logger.warning(f"{columns}")
+
+    session = Session(bind=engine)
+    try:
+        # Build the query selecting only the specified columns
+        query = select(*[table_object.c[column] for column in columns])
+        logger.warning(f"{query}")
+        result = session.execute(query).fetchall()
+        logger.warning(f"{result}")
+    except Exception as error:
+        logger.error(f"Exception occurred. Error: {error}")
+        logger.error(f"{format_exc()}")
+        result = None
+    finally:
+        session.close()
+
+    return [StockRecord.from_uidless_tuple(row) for row in result]
+    
 

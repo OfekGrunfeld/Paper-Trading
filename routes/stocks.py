@@ -56,3 +56,4 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
     except Exception as error:
         logger.error(f"Error submitting order. Error: {traceback.format_exc()}")
         return None
+
