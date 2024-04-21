@@ -106,13 +106,14 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
 def get_user_database_table(database_name: str, uuid: str):
     try:
         return_dict = ServerResponse()
-        # uuid = decrypt(uuid)
+        uuid = decrypt(uuid)
 
         logger.debug(f"Received user portfolio request for user: {uuid}")
 
         results = query_specific_columns_from_database_table(database_name, uuid)
         
         return_dict.data = results
+        return_dict.success = True
     except Exception as error:
         logger.error(f"Unexpected error occured in sign up: {error}")
         return_dict.reset()
