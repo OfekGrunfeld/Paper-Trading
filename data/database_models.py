@@ -22,7 +22,6 @@ def generate_uuid() -> str:
     """
     return str(uuid.uuid4())
 
-
 class Userbase(db_base_userbase):
     """
     Userbase databse:
