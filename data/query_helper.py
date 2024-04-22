@@ -1,8 +1,8 @@
-from typing import Union, List, Tuple, Optional, Any, Sequence
+from typing import Union, List, Tuple, Optional, Any, Sequence, Dict
 from enum import Enum
 import numpy as np
 
-from sqlalchemy import Engine, MetaData, select, and_
+from sqlalchemy import Engine, MetaData, select, and_, distinct, func, inspect
 from sqlalchemy.engine.row import Row
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.exc import NoResultFound
@@ -232,9 +232,6 @@ def user_exists(email: Optional[str] = None, uuid: Optional[str] = None, usernam
         session.close()
 
 def query_specific_columns_from_database_table(database_name: str, table_name: str, columns: list[str] = None) -> None | Sequence[Row[Any]]:
-    from sqlalchemy import inspect
-    from traceback import format_exc
-    
     table_format, metadata, engine = get_database_variables_by_name(database_name)
 
     table_object = metadata.tables.get(table_name)
@@ -259,11 +256,60 @@ def query_specific_columns_from_database_table(database_name: str, table_name: s
         logger.warning(f"{result}")
     except Exception as error:
         logger.error(f"Exception occurred. Error: {error}")
-        logger.error(f"{format_exc()}")
         result = None
     finally:
         session.close()
 
     return [StockRecord.from_uidless_tuple(row) for row in result]
     
+def get_summary(database_name: str, table_name: str):
+    """
+    Retrieves a summary of all unique symbols the user has in both 'buy' and 'sell' sides,
+    along with the total share count for each symbol.
 
+    Args:
+        database_name (str): The name of the database where the stock records are stored.
+        uuid (str): The UUID of the user whose portfolio is to be queried.
+
+    Returns:
+        dict: A dictionary with keys 'buy' and 'sell', each containing a dictionary
+              of symbols and their corresponding total share count.
+    """
+    summary = {'buy': {}, 'sell': {}}
+
+    _, metadata, engine = get_database_variables_by_name(database_name)
+    if metadata is None or engine is None:
+        logger.error(f"Failed to retrieve database settings for {database_name}.")
+        return {}
+
+    session = sessionmaker(bind=engine)()
+
+    try:
+        table = metadata.tables.get(table_name)
+        if table is None:
+            logger.error(f"No table found for user {table_name} in database {database_name}.")
+            return summary
+
+        for side in ['buy', 'sell']:
+            # Correctly constructing the select statement
+            query = select(
+                table.c.symbol, 
+                func.sum(table.c.shares).label("shares")
+            ).where(
+                table.c.side == side
+            ).group_by(
+                table.c.symbol
+            )
+            results = session.execute(query).fetchall()
+
+            # Populate the summary dictionary
+            for symbol, total_shares in results:
+                summary[side][symbol] = total_shares
+
+        return summary
+    except Exception as error:
+        logger.error(f"Error occurred while querying the portfolio for {table_name}: {error}")
+        summary = None
+    finally:
+        session.close()
+        return summary

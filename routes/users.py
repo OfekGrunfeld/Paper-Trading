@@ -1,12 +1,15 @@
-from fastapi import Depends, HTTPException, APIRouter
+import numpy as np
+
+from fastapi import Depends, HTTPException, APIRouter, Query
 from sqlalchemy.orm import Session
 
 from records.server_response import ServerResponse
 from utils.logger_script import logger
 from data.database import get_db_userbase, DatabasesNames
-from data.database_models import Userbase
+from data.database_models import Userbase, UserIdentifiers
 from data.database_helper import create_user_model
-from data.query_helper import user_exists, query_specific_columns_from_database_table
+from data.query_helper import (user_exists, query_specific_columns_from_database_table, get_summary, 
+                               get_user_from_userbase)
 from encryption.decrypt import decrypt
 
 users_router = APIRouter()
@@ -102,7 +105,7 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
         logger.debug(f"sending back data: {return_dict.to_dict()}")
         return return_dict.to_dict()
 
-@users_router.get("/get_user_database_table/{database_name}")
+@users_router.get("/get_user/database/{database_name}")
 def get_user_database_table(database_name: str, uuid: str):
     try:
         return_dict = ServerResponse()
@@ -112,6 +115,28 @@ def get_user_database_table(database_name: str, uuid: str):
 
         results = query_specific_columns_from_database_table(database_name, uuid)
         
+        return_dict.data = results
+        return_dict.success = True
+    except Exception as error:
+        logger.error(f"Unexpected error occured in sign up: {error}")
+        return_dict.reset()
+        return_dict.error = "Internal Server Error"
+    finally:
+        return return_dict
+
+@users_router.get("/get_user/summary")
+def get_user_summary(uuid: str):
+    try:
+        return_dict = ServerResponse()
+        # uuid = decrypt(uuid)
+
+        logger.debug(f"Received user portfolio request for user: {uuid}")
+
+        # Get portfolio summary
+        results: dict[str, list[str]] = get_summary(DatabasesNames.portfolios.value, uuid)
+        # Add current balance
+        results["balance"] = np.floor(get_user_from_userbase(identifier=UserIdentifiers.uuid.value, value=uuid).balance * 100) / 100
+
         return_dict.data = results
         return_dict.success = True
     except Exception as error:
