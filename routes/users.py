@@ -1,16 +1,18 @@
 import numpy as np
 
 from fastapi import Depends, HTTPException, APIRouter, Query
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from records.server_response import ServerResponse
 from utils.logger_script import logger
-from data.database import get_db_userbase, DatabasesNames
+from data.database import get_db_userbase, DatabasesNames, get_db
 from data.database_models import Userbase, UserIdentifiers
 from data.database_helper import create_user_model
 from data.query_helper import (user_exists, query_specific_columns_from_database_table, get_summary, 
-                               get_user_from_userbase)
+                               get_user_from_userbase, password_matches)
 from encryption.decrypt import decrypt
+from encryption.userbase_encryption import encode_username, encode_password
 
 users_router = APIRouter()
 
@@ -128,7 +130,7 @@ def get_user_database_table(database_name: str, uuid: str):
 def get_user_summary(uuid: str):
     try:
         return_dict = ServerResponse()
-        # uuid = decrypt(uuid)
+        uuid = decrypt(uuid)
 
         logger.debug(f"Received user portfolio request for user: {uuid}")
 
@@ -145,3 +147,49 @@ def get_user_summary(uuid: str):
         return_dict.error = "Internal Server Error"
     finally:
         return return_dict
+
+@users_router.put("/update/{attribute_to_update}")
+def update_user(attribute_to_update: str, uuid: str, password: str, new_attribute_value: str = Query(alias="value")):
+    try:
+        return_dict = ServerResponse()
+        uuid, password, new_attribute_value = decrypt(uuid), decrypt(password), decrypt(new_attribute_value)
+
+        logger.debug(f"Received update request to update {attribute_to_update}")
+
+        if password_matches(identifier=UserIdentifiers.uuid.value, identifier_value=uuid, password=password):
+            try:
+                session: Session = next(get_db(DatabasesNames.userbase.value))
+
+                # Verify that attribute_to_update is a valid column name
+                if hasattr(Userbase, attribute_to_update):
+                    if attribute_to_update == UserIdentifiers.email.value:
+                        update_values = {attribute_to_update: new_attribute_value.lower()}
+                    elif attribute_to_update == UserIdentifiers.password.value:
+                        update_values = {attribute_to_update: encode_password(new_attribute_value)}
+                    elif attribute_to_update == UserIdentifiers.username.value:
+                        update_values = {attribute_to_update: encode_username(new_attribute_value)}
+                    
+                    session.execute(
+                        update(Userbase).
+                        where(Userbase.uuid == uuid).
+                        values(**update_values)  # Correct use of dictionary unpacking
+                    )
+                    session.commit()
+                    session.close()
+                    return_dict.success = True
+                
+            except Exception as error:
+                logger.error(f"Error updating {attribute_to_update} in database. Error: {error}")
+                return_dict.reset()
+                return_dict.error = "Internal Server Error"
+        else:
+            logger.warning(f"Couldn't update {attribute_to_update} as password does not match")
+    except Exception as error:
+        logger.error(f"Unexpected error occured in sign up: {error}")
+        return_dict.reset()
+        return_dict.error = "Internal Server Error"
+    finally:
+        return return_dict
+
+
+

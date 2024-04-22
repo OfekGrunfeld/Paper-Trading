@@ -11,46 +11,6 @@ from data.database import get_db_userbase
 old_router = APIRouter()
 
 """ EVERYTHING BELOW HERE IS NOT UPDATED FOR COMMUNICATION IN THE ENCRYPTION"""
-@papertrading_app.get("/get_user_by_username")
-def get_user_by_username(data: dict, db: Session = Depends(get_db_userbase)) -> List[Dict]:
-    try:
-        return_dict = ServerResponse()
-        username = data["username"]
-
-        # get user with uuid from database
-        user_model = db.query(Userbase).filter(Userbase.username == username).first()
-        
-        
-        # check if there is no such user
-        if user_model is None:
-            return_dict["error"] = f"Username: {username} does not exist"
-            raise HTTPException(
-                status_code=404,
-                detail=return_dict.to_dict()
-            )
-        
-        try: 
-            user = db.query(Userbase).all()
-            return_dict.data = str(user)
-        except Exception as error:
-            logger.error(f"Failed querying user in database: {error}")
-            return_dict.reset()
-            return_dict.error = f"Failed querying user in database"
-            raise HTTPException(
-                status_code=500,
-                detail=return_dict.to_dict()
-            )
-    except Exception as error:
-        logger.error(f"Failed getting user: {error}")
-        return_dict.reset()
-        return_dict.error = f"Failed getting user"
-        raise HTTPException(
-            status_code=500,
-            detail=return_dict.to_dict()
-        )
-    finally:
-        return return_dict.to_dict()
-
 # currently deleted with username and not email / both
 @papertrading_app.delete("/delete_user")
 def delete_user(data: dict, db: Session = Depends(get_db_userbase)):
@@ -83,38 +43,6 @@ def delete_user(data: dict, db: Session = Depends(get_db_userbase)):
             return_dict.success = False
     except Exception as error:
         logger.error(f"Failed to delete user {username}. Error: {error}")
-        return_dict.reset()
-        return_dict.error = f"Failed to delete user. Internal server error"
-        return_dict.success = False
-    finally:
-        return return_dict.to_dict()
-
-@papertrading_app.delete("/force_delete_user")
-def force_delete_user(data: dict, db: Session = Depends(get_db_userbase)):
-    try: 
-        return_dict = ServerResponse()
-        # get user with uuid from database
-        
-        uuid = data["uuid"]
-        user_model = db.query(Userbase).filter(Userbase.uuid == uuid).first()
-        
-        # check if there is no such user
-        if user_model is None:
-            logger.debug(f"Failed to delete user {uuid}. Non-existing user ")
-            return_dict.error = "Failed to delete user. Non-existing user"
-            raise HTTPException(
-                status_code=404,
-                detail=return_dict.to_dict()
-            )
-        
-        # delete user
-        db.query(Userbase).filter(Userbase.uuid == uuid).delete()
-        db.commit()
-        # update return dict
-        return_dict.data = "Deleted user successfully"
-        return_dict.success = True
-    except Exception as error:
-        logger.error(f"Failed to delete user {uuid}. Error: {error}")
         return_dict.reset()
         return_dict.error = f"Failed to delete user. Internal server error"
         return_dict.success = False

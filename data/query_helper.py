@@ -10,7 +10,7 @@ from data.database import DatabasesNames, get_db
 from data.database_models import Userbase, UserIdentifiers, get_database_variables_by_name
 from records.stock_record import StockRecord
 from utils.logger_script import logger
-from encryption.userbase_encryption import encode_username
+from encryption.userbase_encryption import encode_username, encode_password
 
 def query_all_tables_in_selected_database(database_name: str, columns: list[str], filters: list[tuple]):
     _, metadata, engine = get_database_variables_by_name(database_name)
@@ -123,16 +123,15 @@ def get_user_from_userbase(identifier: str, value: str) -> Union[Userbase, None]
         Userbase: The Userbase object if found, None otherwise.
     """
     # Disallow searching by password
-    if identifier == 'password':
+    if identifier == UserIdentifiers.password.value:
         logger.error("Searching by password is not allowed.")
         return None
     if identifier not in UserIdentifiers:
         logger.error(f"Identifier is not one of the supported identifiers. Chosen identifier: {identifier}.")
         return None
 
-    db_userbase: Session = next(get_db(DatabasesNames.userbase.value))
-
     try:
+        db_userbase: Session = next(get_db(DatabasesNames.userbase.value))
         # Dynamically set the attribute to filter on based on the identifier
         filter_condition = getattr(Userbase, identifier) == value
         user_model = db_userbase.query(Userbase).filter(filter_condition).one()
@@ -313,3 +312,11 @@ def get_summary(database_name: str, table_name: str):
     finally:
         session.close()
         return summary
+    
+def password_matches(identifier: str, identifier_value: str, password: str) -> bool:
+    saved_user = get_user_from_userbase(identifier, identifier_value)
+
+    if saved_user is None:
+        return False
+    else:
+        return saved_user.password == encode_password(password)
