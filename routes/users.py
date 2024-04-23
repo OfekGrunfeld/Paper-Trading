@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Union
 
 from fastapi import Depends, HTTPException, APIRouter, Query
 from sqlalchemy import update
@@ -10,7 +11,7 @@ from data.database import get_db_userbase, DatabasesNames, get_db
 from data.database_models import Userbase, UserIdentifiers
 from data.database_helper import create_user_model
 from data.query_helper import (user_exists, query_specific_columns_from_database_table, get_summary, 
-                               get_user_from_userbase, password_matches)
+                               get_user_from_userbase, password_matches, compile_user_portfolio)
 from encryption.decrypt import decrypt
 from encryption.userbase_encryption import encode_username, encode_password
 
@@ -134,11 +135,12 @@ def get_user_summary(uuid: str):
 
         logger.debug(f"Received user portfolio request for user: {uuid}")
 
-        # Get portfolio summary
-        results: dict[str, list[str]] = get_summary(DatabasesNames.portfolios.value, uuid)
-        # Add current balance
+        results: dict = {}
         results["balance"] = np.floor(get_user_from_userbase(identifier=UserIdentifiers.uuid.value, value=uuid).balance * 100) / 100
-
+        # Get portfolio summary
+        results["symbols"] = compile_user_portfolio(DatabasesNames.portfolios.value, uuid)
+        # Add current balance
+        
         return_dict.data = results
         return_dict.success = True
     except Exception as error:
@@ -176,7 +178,9 @@ def update_user(attribute_to_update: str, uuid: str, password: str, new_attribut
                     )
                     session.commit()
                     session.close()
+                    
                     return_dict.success = True
+                    logger.debug(f"Changing of {attribute_to_update} has been successful")
                 
             except Exception as error:
                 logger.error(f"Error updating {attribute_to_update} in database. Error: {error}")

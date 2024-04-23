@@ -103,7 +103,7 @@ class StockHandler:
                 stock_data=stock_record_dict
             )
             if flag:
-                logger.info(f"Successully sold {stock_record.shares} shares for a revenue of {revenue}")
+                logger.info(f"Successully sold {stock_record.shares} shares for a revenue of {revenue}. Each share for a price of {stock_record.cost_per_share}")
             else:
                 logger.info(f"Failed to update transactions database with the sell transaction data")
         
@@ -151,7 +151,7 @@ class StockHandler:
 
         try:
             shares_list = get_user_shares_by_symbol(DatabasesNames.portfolios.value, uuid, symbol)
-            total_shares = sum(shares for _, shares, _ in shares_list)
+            total_shares = sum([shares for _, shares, _ in shares_list])
 
             revenue = 0
 

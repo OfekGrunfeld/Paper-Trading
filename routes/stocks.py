@@ -32,9 +32,9 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
             case "market":
                 return_dict.success = True
                 if order["side"] == "sell":
-                    cost_per_share =  np.double(info["ask"])
+                    cost_per_share =  np.double(info["bid"])
                 else:
-                    cost_per_share = np.double(info["bid"])
+                    cost_per_share = np.double(info["ask"])
                 try:
                     sr = StockRecord(
                         symbol=order["symbol"],

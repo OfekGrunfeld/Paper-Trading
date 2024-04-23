@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from records.stock_record import StockRecord
 from data.database_models import generate_table_by_id_for_selected_database, get_database_variables_by_name, Userbase
-from data.query_helper import does_row_exist_in_table, get_user_shares_by_symbol
+from data.query_helper import does_row_exist_in_table, get_owned_user_shares_by_symbol
 from utils.logger_script import logger
 from encryption.userbase_encryption import encode_username, encode_password
 
@@ -184,7 +184,7 @@ def get_all_symbols_count(database_name: str, uuid: str, symbols: List[str]) -> 
     symbol_counts = Counter({symbol: 0 for symbol in symbols})
 
     for symbol in symbols:
-        shares_list = get_user_shares_by_symbol(database_name, uuid, symbol)
+        shares_list = get_owned_user_shares_by_symbol(database_name, uuid, symbol)
         for _, shares in shares_list:
             symbol_counts[symbol] += shares
 
