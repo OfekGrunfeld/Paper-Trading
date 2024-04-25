@@ -2,7 +2,7 @@ from typing import Union, List, Tuple, Optional, Any, Sequence, Dict
 from enum import Enum
 import numpy as np
 
-from sqlalchemy import Engine, MetaData, select, and_, distinct, func, inspect
+from sqlalchemy import Engine, MetaData, select, and_, distinct, func, inspect, delete
 from sqlalchemy.engine.row import Row
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.exc import NoResultFound
@@ -432,3 +432,49 @@ def compile_user_portfolio(database_name: str, uuid: str):
         portfolio_summary[symbol] = get_owned_user_shares_by_symbol(database_name, uuid, symbol)
 
     return portfolio_summary
+
+def delete_user_data_from_database(uuid: str, database_name: str) -> bool:
+    """
+    Deletes user data from a specified database. If the database is 'userbase', it deletes only the specific user's row.
+    Otherwise, it attempts to delete a table named after the user's UUID (used for transaction and portfolio databases).
+
+    Args:
+        uuid (str): The user's UUID.
+        database_name (str): The name of the database from which to delete the user's data.
+
+    Returns:
+        bool: True if the deletion was successful, False otherwise.
+    """
+    try:
+        if database_name == DatabasesNames.userbase.value:
+            session = next(get_db(database_name))
+            # Execute the delete operation for a specific user in the userbase
+            user = session.query(Userbase).filter(Userbase.uuid == uuid).delete()
+            session.commit()
+            logger.info(f"Successfully deleted user data for UUID {uuid} from userbase.")
+            return True
+        else:
+            # Retrieve database configurations
+            _, metadata, engine = get_database_variables_by_name(database_name)
+            if metadata is None or engine is None:
+                logger.warning(f"Database setup not found for {database_name}")
+                return False
+
+            session = Session(bind=engine)
+            # Get the table from metadata which is named after the user's UUID
+            user_table = metadata.tables.get(uuid)
+            if user_table is not None:
+                # Execute the delete operation for the entire table
+                session.execute(delete(user_table))
+                session.commit()
+                logger.info(f"Successfully deleted all data for user {uuid} from {database_name}.")
+                return True
+            else:
+                logger.warning(f"No table found for user {uuid} in database {database_name}.")
+                return False
+    except Exception as error:
+        logger.error(f"Failed to delete data for user {uuid} from {database_name}: {error}")
+        return False
+    finally:
+        session.close()
+        logger.warning(f"Even here")

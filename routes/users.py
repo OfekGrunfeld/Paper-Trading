@@ -2,7 +2,7 @@ import numpy as np
 from typing import Union
 
 from fastapi import Depends, HTTPException, APIRouter, Query
-from sqlalchemy import update
+from sqlalchemy import update, delete
 from sqlalchemy.orm import Session
 
 from records.server_response import ServerResponse
@@ -11,7 +11,8 @@ from data.database import get_db_userbase, DatabasesNames, get_db
 from data.database_models import Userbase, UserIdentifiers
 from data.database_helper import create_user_model
 from data.query_helper import (user_exists, query_specific_columns_from_database_table, get_summary, 
-                               get_user_from_userbase, password_matches, compile_user_portfolio)
+                               get_user_from_userbase, password_matches, compile_user_portfolio,
+                               delete_user_data_from_database)
 from encryption.decrypt import decrypt
 from encryption.userbase_encryption import encode_username, encode_password
 
@@ -195,5 +196,36 @@ def update_user(attribute_to_update: str, uuid: str, password: str, new_attribut
     finally:
         return return_dict
 
+@users_router.delete("/delete/user")
+def delete_user(uuid: str, password: str):
+    try:
+        return_dict = ServerResponse()
+        # Decrypt the uuid and password
+        # uuid, password = decrypt(uuid), decrypt(password)
 
+        logger.debug(f"Received delete request for user {uuid}")
 
+        if password_matches(identifier=UserIdentifiers.uuid.value, identifier_value=uuid, password=password):
+            # Attempt to delete user data from userbase, transactions, and portfolios databases
+            success_userbase = delete_user_data_from_database(uuid, DatabasesNames.userbase.value)
+            success_transactions = delete_user_data_from_database(uuid, DatabasesNames.transactions.value)
+            success_portfolios = delete_user_data_from_database(uuid, DatabasesNames.portfolios.value)
+
+            if success_userbase and success_transactions and success_portfolios:
+                logger.info(f"User {uuid} and all associated data have been successfully deleted.")
+                return_dict.success = True
+            else:
+                logger.error(f"Failed to fully delete user {uuid} and associated data.")
+                return_dict.reset()
+                return_dict.error = "Partial or no data was deleted."
+        else:
+            logger.warning(f"Could not delete user {uuid} as the password does not match.")
+            return_dict.reset()
+            return_dict.error = "Invalid password."
+
+    except Exception as error:
+        logger.error(f"Unexpected error occurred while trying to delete user {uuid}: {error}")
+        return_dict.reset()
+        return_dict.error = "Internal Server Error"
+
+    return return_dict
