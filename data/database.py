@@ -56,13 +56,17 @@ db_sessionmaker_portfolios = sessionmaker(autocommit=False, autoflush=False, bin
 db_metadata_portfolios = MetaData()
 
 
-def create_all_databases():
-    global db_base_userbase, db_engine_userbase, db_metadata_transactions, db_engine_transactions, db_metadata_portfolios, db_engine_portfolios
+def create_all_databases() -> bool:
+    try:
+        global db_base_userbase, db_engine_userbase, db_metadata_transactions, db_engine_transactions, db_metadata_portfolios, db_engine_portfolios
 
-    
-    db_base_userbase.metadata.create_all(bind=db_engine_userbase)
-    db_metadata_transactions.reflect(bind=db_engine_transactions)
-    db_metadata_portfolios.reflect(bind=db_engine_portfolios)
+        db_base_userbase.metadata.create_all(bind=db_engine_userbase)
+        db_metadata_transactions.reflect(bind=db_engine_transactions)
+        db_metadata_portfolios.reflect(bind=db_engine_portfolios)
+        return True
+    except Exception as error:
+        logger.critical(f"Error initialising databases. Error: {error}")
+        return False
 # Get databases with generator functions
 def get_db_userbase() -> Generator[Session, any, None]:
     try:

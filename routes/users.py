@@ -201,7 +201,7 @@ def delete_user(uuid: str, password: str):
     try:
         return_dict = ServerResponse()
         # Decrypt the uuid and password
-        # uuid, password = decrypt(uuid), decrypt(password)
+        uuid, password = decrypt(uuid), decrypt(password)
 
         logger.debug(f"Received delete request for user {uuid}")
 

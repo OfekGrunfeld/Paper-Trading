@@ -20,5 +20,6 @@ if __name__ == "__main__":
     papertrading_app.include_router(stocks_router)
     papertrading_app.include_router(users_router)
 
-    create_all_databases()
-    run_app(app=papertrading_app)
+    if create_all_databases():
+        run_app(app=papertrading_app)
+        
