@@ -1,3 +1,2 @@
-from .stocks import stocks_router
-from .users import users_router
+from .routes import fastapi_router
 

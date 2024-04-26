@@ -5,19 +5,22 @@ from sqlalchemy import update
 from sqlalchemy.orm.session import Session
 import numpy as np
 
-from data.database import DatabasesNames, get_db
-from data.database_models import UserIdentifiers, Userbase
-from records.stock_record import StockRecord, Statuses
-from data.database_helper import (add_stock_data_to_selected_database_table, get_table_object_from_selected_database_by_name, 
-                                  remove_row_by_uid)
-from data.query_helper import get_user_from_userbase, get_user_shares_by_symbol
+# Modules
 from utils.logger_script import logger
-from stocks.yfinance_helper import get_symbol_info
+from utils.yfinance_helper import get_symbol_info
+
+from records.stock_record import StockRecord, Statuses
+from records.database_records import UserIdentifiers
+
+from data.database import DatabasesNames
+from data.userbase.model import Userbase
+from data.get_databases import get_db
+from data.get_databases import get_table_object_from_selected_database_by_name
+from data.dynamic_databases.helper import add_stock_data_to_selected_database_table, remove_row_by_uid, get_user_shares_by_symbol
+from data.userbase.helper import get_user_from_userbase
+
 
 class StockHandler:
-    CHECK_TIME = 15 # seconds
-    pending = []
-
     @staticmethod
     def deal_with_transaction(stock_record: StockRecord, uuid: str):
         """
@@ -205,16 +208,6 @@ class StockHandler:
         finally:
             portfolio_session.close()
             transaction_session.close()
-
-
-
-            
-
-            
-
-                
-
-
 
 
 # def change_pending(scheduler: sched.scheduler):

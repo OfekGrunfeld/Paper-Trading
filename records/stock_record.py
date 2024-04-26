@@ -44,7 +44,8 @@ class StockRecord(BetterDataclass):
     @classmethod
     def from_uidless_tuple(cls, data_tuple: Tuple) -> 'StockRecord':
         """
-        Converts a tuple containing ALL the necessary fields to a dataclass instance
+        Converts a tuple containing ALL the necessary fields to 
+        a dataclass instance except the first one - the UID
         """
         # Instantiate the object without calling the __init__ or __post_init__
         instance = cls.__new__(cls)

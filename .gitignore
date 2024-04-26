@@ -1,4 +1,3 @@
-# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
@@ -10,7 +9,9 @@ __pycache__/
 .env
 tester.py
 
-old/*
-encryption/*
+old/
+https/
+encryption/
 
 *.pem
+*/*.pem

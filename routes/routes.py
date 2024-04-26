@@ -1,24 +1,30 @@
 import numpy as np
-from typing import Union
+import traceback
 
 from fastapi import Depends, HTTPException, APIRouter, Query
-from sqlalchemy import update, delete
+from sqlalchemy import update
 from sqlalchemy.orm import Session
+import yfinance as yf
 
-from records.server_response import ServerResponse
+# Modules
 from utils.logger_script import logger
-from data.database import get_db_userbase, DatabasesNames, get_db
-from data.database_models import Userbase, UserIdentifiers
-from data.database_helper import create_user_model
-from data.query_helper import (user_exists, query_specific_columns_from_database_table, get_summary, 
-                               get_user_from_userbase, password_matches, compile_user_portfolio,
-                               delete_user_data_from_database)
-from encryption.decrypt import decrypt
-from encryption.userbase_encryption import encode_username, encode_password
+from utils.stock_handler import StockHandler
+from utils.decrypt import decrypt
 
-users_router = APIRouter()
+from records.stock_record import StockRecord
+from records.server_response import ServerResponse
+from records.database_records import DatabasesNames, UserIdentifiers
 
-@users_router.post("/sign_up")
+from data.get_databases import get_db, get_db_userbase
+from data.userbase.model import Userbase
+from data.userbase.helper import (get_user_from_userbase, create_user_model, password_matches, delete_user_data_from_database, 
+                                  get_user_from_userbase, check_uniqueness_of_email_and_or_username)
+from data.userbase.encryption import encode_username, encode_password
+from data.dynamic_databases.helper import query_specific_columns_from_database_table, compile_user_portfolio
+
+fastapi_router = APIRouter()
+
+@fastapi_router.post("/sign_up")
 def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db_userbase)) -> dict[str, str | bool]:
     try: 
         logger.debug(f"Received sign up request")
@@ -27,8 +33,9 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
         email, username, password = decrypt(email), decrypt(username), decrypt(password)
 
         # filter out using email or username that is already being used
-        if user_exists(email=email):
-            return_dict.error = "Failed to sign up. Email associated with existing user"
+        is_unique, reasons_for_ununiqueness = check_uniqueness_of_email_and_or_username(username=username, email=email)
+        if not is_unique:
+            return_dict.error = f"Failed to sign up. {" ".join(reasons_for_ununiqueness)} associated with existing user"
         else:
             # save email as string, save username and password encoded sha256 to database
             # logger.info("Checking if email exists by SMTP and DNS")
@@ -69,7 +76,7 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
     finally:
         return return_dict.to_dict()
 
-@users_router.post("/sign_in")
+@fastapi_router.post("/sign_in")
 def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)):
     try: 
         logger.debug(f"Received sign in request")
@@ -77,30 +84,24 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
 
         username, password = decrypt(username), decrypt(password)
 
-        # create user model with username and password
+        # Create a user model (encoded)
         user_model = create_user_model(None, username, password)
 
-        # filter out using email or username that is already being used
-        if not user_exists(username=username):
-            logger.debug(f"Failed to sign in {username}. Non-existing user")
-            return_dict.error = "Failed to sign in. Non-existing user"
-            raise HTTPException(
-                status_code=404,
-                detail=return_dict.to_dict()
-            )
+        saved_user = db.query(Userbase).filter((Userbase.username == user_model.username) & (Userbase.password == user_model.password)).first()
+        if saved_user is not None:
+            logger.debug(f"Signed in for user {username} approved")
+            return_dict.success = True
+            extra_data = {}
+            try:
+                extra_data["uuid"] = saved_user.uuid
+                extra_data["email"] = saved_user.email
+                return_dict.data = extra_data
+            except Exception as error:
+                logger.critical(f"Error while retrieving uuid from saved user: {error}")
         else:
-            saved_user = db.query(Userbase).filter((Userbase.username == user_model.username) & (Userbase.password == user_model.password)).first()
-            if saved_user is not None:
-                logger.debug(f"Signed in for user {username} approved")
-                return_dict.success = True
-                try:
-                    return_dict.data = saved_user.uuid
-                except Exception as error:
-                    logger.critical(f"Error while retrieving uuid from saved user: {error}")
-            else:
-                logger.debug(f"Signed in for user {username} has failed")
-                return_dict.reset()
-                return_dict.error = "Failed to sign in. Password is incorrect"
+            logger.debug(f"Signed in for user {username} has failed. User likely doesn't exist.")
+            return_dict.reset()
+            return_dict.error = "Failed to sign in. Password is incorrect"
     except Exception as error:
         logger.error(f"Sign in has failed {error}")
         return_dict.error = "Sign in has failed"
@@ -109,7 +110,7 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
         logger.debug(f"sending back data: {return_dict.to_dict()}")
         return return_dict.to_dict()
 
-@users_router.get("/get_user/database/{database_name}")
+@fastapi_router.get("/get_user/database/{database_name}")
 def get_user_database_table(database_name: str, uuid: str):
     try:
         return_dict = ServerResponse()
@@ -117,6 +118,7 @@ def get_user_database_table(database_name: str, uuid: str):
 
         logger.debug(f"Received user portfolio request for user: {uuid}")
 
+        # If received no columns - treat as special case where you choose all columns except the uid
         results = query_specific_columns_from_database_table(database_name, uuid)
         
         return_dict.data = results
@@ -128,7 +130,7 @@ def get_user_database_table(database_name: str, uuid: str):
     finally:
         return return_dict
 
-@users_router.get("/get_user/summary")
+@fastapi_router.get("/get_user/summary")
 def get_user_summary(uuid: str):
     try:
         return_dict = ServerResponse()
@@ -151,7 +153,7 @@ def get_user_summary(uuid: str):
     finally:
         return return_dict
 
-@users_router.put("/update/{attribute_to_update}")
+@fastapi_router.put("/update/{attribute_to_update}")
 def update_user(attribute_to_update: str, uuid: str, password: str, new_attribute_value: str = Query(alias="value")):
     try:
         return_dict = ServerResponse()
@@ -196,7 +198,7 @@ def update_user(attribute_to_update: str, uuid: str, password: str, new_attribut
     finally:
         return return_dict
 
-@users_router.delete("/delete/user")
+@fastapi_router.delete("/delete/user")
 def delete_user(uuid: str, password: str):
     try:
         return_dict = ServerResponse()
@@ -229,3 +231,46 @@ def delete_user(uuid: str, password: str):
         return_dict.error = "Internal Server Error"
 
     return return_dict
+
+
+@fastapi_router.post("/submit_order")
+def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
+    try:
+        uuid, order = decrypt(uuid), decrypt(order)
+        return_dict = ServerResponse()
+
+        try:
+            info = yf.Ticker(order["symbol"]).info
+        except Exception as error:
+            logger.error(f"Failed to get info of stock from yfinance: {error}")
+
+
+        match(order["order_type"]):
+            case "market":
+                return_dict.success = True
+                if order["side"] == "sell":
+                    cost_per_share =  np.double(info["bid"])
+                else:
+                    cost_per_share = np.double(info["ask"])
+                try:
+                    sr = StockRecord(
+                        symbol=order["symbol"],
+                        side=order["side"],
+                        order_type=order["order_type"],
+                        shares=order["shares"],
+                        cost_per_share=cost_per_share,
+                        notes=None
+                    )
+                except Exception as error:
+                    logger.error(f"Error creating stock record: {error}")
+                # for debugging currently
+                StockHandler.deal_with_transaction(sr, uuid)
+            
+            case _:
+                return_dict.error = f"Invalid or unsupported order type"
+            
+        return return_dict
+    except Exception as error:
+        logger.error(f"Error submitting order. Error: {traceback.format_exc()}")
+        return None
+
