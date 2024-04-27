@@ -4,7 +4,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import smtplib
 
-from utils.constants import SERVER_EMAIL, SERVER_PASSWORD, SMTP_SERVER_URL
+from utils.env_variables import SERVER_EMAIL, SERVER_PASSWORD, SMTP_SERVER_URL
 from utils.logger_script import logger
 
 # class to organise different message types

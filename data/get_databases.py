@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Generator, Union
+import traceback
 
 from sqlalchemy import MetaData, Engine, Table
 from sqlalchemy.orm import Session
@@ -18,6 +19,7 @@ def get_db_userbase() -> Generator[Session, any, None]:
         yield db
     except Exception as error:
         logger.critical(f"ERROR IN GETTING USERBASE DATABASE: {error}")
+        logger.critical(traceback.format_exc())
     finally:
         db.close()
 

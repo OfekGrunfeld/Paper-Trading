@@ -9,7 +9,7 @@ import yfinance as yf
 # Modules
 from utils.logger_script import logger
 from utils.stock_handler import StockHandler
-from utils.decrypt import decrypt
+from utils.encryption import decrypt
 
 from records.stock_record import StockRecord
 from records.server_response import ServerResponse
@@ -83,7 +83,7 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
         return_dict = ServerResponse()
 
         username, password = decrypt(username), decrypt(password)
-
+        logger.warning(f"Undecrypted: {username}, {password}")
         # Create a user model (encoded)
         user_model = create_user_model(None, username, password)
 
@@ -110,6 +110,7 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
         logger.debug(f"sending back data: {return_dict.to_dict()}")
         return return_dict.to_dict()
 
+# Unused 
 @fastapi_router.get("/get_user/database/{database_name}")
 def get_user_database_table(database_name: str, uuid: str):
     try:
@@ -232,7 +233,6 @@ def delete_user(uuid: str, password: str):
 
     return return_dict
 
-
 @fastapi_router.post("/submit_order")
 def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
     try:
@@ -274,3 +274,7 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
         logger.error(f"Error submitting order. Error: {traceback.format_exc()}")
         return None
 
+@fastapi_router.get("/routes")
+def get_routes():
+    url_list = [route.path for route in fastapi_router.routes]
+    return url_list

@@ -1,7 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
 
-from utils.constants import HOST_IP, HOST_PORT 
+from utils.env_variables import HOST_IP, HOST_PORT 
 from data.database import initialise_all_databases
 
 from routes.routes import fastapi_router

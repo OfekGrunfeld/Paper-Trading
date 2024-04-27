@@ -1,6 +1,6 @@
 from validate_email import validate_email
 
-from utils.constants import SMTP_SERVER_URL, SERVER_EMAIL
+from utils.env_variables import SMTP_SERVER_URL, SERVER_EMAIL
 from utils.logger_script import logger
 
 def is_valid_email_external(email_adress: str):

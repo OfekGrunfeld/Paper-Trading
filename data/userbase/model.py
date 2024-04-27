@@ -5,7 +5,7 @@ from data.database import DatabasesNames
 from data.database import db_base_userbase
 from data.utils.uuid import generate_uuid
 
-from utils.constants import START_BALANCE
+from utils.env_variables import START_BALANCE
 
 class Userbase(db_base_userbase):
     """
