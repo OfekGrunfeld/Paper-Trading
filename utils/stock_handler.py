@@ -21,6 +21,8 @@ from data.userbase.helper import get_user_from_userbase
 
 
 class StockHandler:
+    status = ""
+
     @staticmethod
     def deal_with_transaction(stock_record: StockRecord, uuid: str):
         """
@@ -30,6 +32,8 @@ class StockHandler:
 
         if saved_user is None:
             logger.error(f"Could not retrieve user from userbase")
+            StockHandler.status = "Internal Server Error"
+            return
 
         user_balance = saved_user.balance
 
@@ -44,6 +48,7 @@ class StockHandler:
                     stock_record_dict = stock_record.to_dict()
                 except Exception as error:
                     logger.error(f"Could not output stock record into a dictionary. Error: {error}")
+                    StockHandler.status = "Internal Server Error"
                     return 
                 success_transactions = add_stock_data_to_selected_database_table(
                     database_name=DatabasesNames.transactions.value,
@@ -58,9 +63,12 @@ class StockHandler:
 
                 if success_transactions and success_portfolio:
                     logger.debug(f"Successfully added transaction to transaction history and active portfolio of user {uuid}")
-                    logger.info(f"{uuid} successfully bought {stock_record.shares} shares, each for {stock_record.cost_per_share} and in total {stock_record.total_cost}")
+                    status = f"Successfully bought {stock_record.shares} shares, each for {stock_record.cost_per_share} and in total {int(stock_record.total_cost * 100) / 100}"
+                    logger.info(f"{uuid} {status}")
+                    StockHandler.status = status
                 else:
                     logger.error(f"Transaction from user {uuid} was not succcessful")
+                    StockHandler.status = "Internal Server Error"
             else:
                 # Sell the amount of stocks the user can buy
                 logger.warning(f"User {uuid} doesn't have enough money to buy {stock_record.shares} shares of {stock_record.symbol}. \
@@ -73,7 +81,7 @@ class StockHandler:
                     StockHandler.deal_with_transaction(stock_record, uuid)
                     return
                 else:
-                    return
+                    StockHandler.status = "Internal Server Error"
         elif stock_record.side == "sell":      
             # Get the portfolio's table object for querying
             table_object = get_table_object_from_selected_database_by_name(table_name=uuid, database_name=DatabasesNames.transactions.value)
@@ -84,6 +92,7 @@ class StockHandler:
 
             if stock_record.shares <= 0:
                 logger.warning(f"Transaction from user {uuid} attempted to sell 0 or fewer shares")
+                StockHandler.status = "Cannot buy 0 or fewer shares"
                 return
             
             # Sell the shares of the symbol form the portfolio
@@ -106,9 +115,12 @@ class StockHandler:
                 stock_data=stock_record_dict
             )
             if flag:
-                logger.info(f"Successully sold {stock_record.shares} shares for a revenue of {revenue}. Each share for a price of {stock_record.cost_per_share}")
+                status = f"Successully sold {stock_record.shares} shares for a revenue of {int(revenue * 100) / 100}. Each share for a price of {int(stock_record.cost_per_share * 100) / 100}"
+                logger.info(status)
+                StockHandler.status = status
             else:
                 logger.info(f"Failed to update transactions database with the sell transaction data")
+                StockHandler.status = "Could not sell shares. Internal Server Error"
         
 
         # Update user balance 

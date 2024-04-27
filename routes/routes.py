@@ -24,6 +24,7 @@ from data.dynamic_databases.helper import query_specific_columns_from_database_t
 
 fastapi_router = APIRouter()
 
+# Fully Done
 @fastapi_router.post("/sign_up")
 def sign_up(email: str, username: str, password: str, db: Session = Depends(get_db_userbase)) -> dict[str, str | bool]:
     try: 
@@ -34,8 +35,9 @@ def sign_up(email: str, username: str, password: str, db: Session = Depends(get_
 
         # filter out using email or username that is already being used
         is_unique, reasons_for_ununiqueness = check_uniqueness_of_email_and_or_username(username=username, email=email)
+
         if not is_unique:
-            return_dict.error = f"Failed to sign up. {" ".join(reasons_for_ununiqueness)} associated with existing user"
+            return_dict.error = f"Failed to sign up. {str(" ".join(reasons_for_ununiqueness)).capitalize()} associated with existing user"
         else:
             # save email as string, save username and password encoded sha256 to database
             # logger.info("Checking if email exists by SMTP and DNS")
@@ -244,7 +246,6 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
         except Exception as error:
             logger.error(f"Failed to get info of stock from yfinance: {error}")
 
-
         match(order["order_type"]):
             case "market":
                 return_dict.success = True
@@ -261,11 +262,10 @@ def submit_order(uuid: str, order: str, db: Session = Depends(get_db_userbase)):
                         cost_per_share=cost_per_share,
                         notes=None
                     )
+                    StockHandler.deal_with_transaction(sr, uuid)
+                    return_dict.data = StockHandler.status
                 except Exception as error:
                     logger.error(f"Error creating stock record: {error}")
-                # for debugging currently
-                StockHandler.deal_with_transaction(sr, uuid)
-            
             case _:
                 return_dict.error = f"Invalid or unsupported order type"
             
