@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from utils.env_variables import HOST_IP, HOST_PORT 
 from data.database import initialise_all_databases
 
-from routes.routes import fastapi_router
+from routes import fastapi_router, admin_router
 
 def run_app(app: FastAPI) -> None:
     uvicorn.run(
@@ -18,6 +18,8 @@ def run_app(app: FastAPI) -> None:
 if __name__ == "__main__":
     papertrading_app = FastAPI()
     papertrading_app.include_router(fastapi_router)
+    # Only in debugging mode
+    papertrading_app.include_router(admin_router)
 
     if initialise_all_databases():
         run_app(app=papertrading_app)

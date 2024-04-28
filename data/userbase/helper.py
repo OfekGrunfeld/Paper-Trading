@@ -170,5 +170,4 @@ def delete_user_data_from_database(uuid: str, database_name: str) -> bool:
         return False
     finally:
         session.close()
-        logger.warning(f"Even here")
     

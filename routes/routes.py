@@ -18,7 +18,7 @@ from records.database_records import DatabasesNames, UserIdentifiers
 from data.get_databases import get_db, get_db_userbase
 from data.userbase.model import Userbase
 from data.userbase.helper import (get_user_from_userbase, create_user_model, password_matches, delete_user_data_from_database, 
-                                  get_user_from_userbase, check_uniqueness_of_email_and_or_username)
+                                  check_uniqueness_of_email_and_or_username)
 from data.userbase.encryption import encode_username, encode_password
 from data.dynamic_databases.helper import query_specific_columns_from_database_table, compile_user_portfolio
 
