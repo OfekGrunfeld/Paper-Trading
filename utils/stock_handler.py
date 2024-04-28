@@ -165,19 +165,21 @@ class StockHandler:
         transaction_session: Session = next(get_db(DatabasesNames.transactions.value))
 
         try:
-            shares_list = get_user_shares_by_symbol(DatabasesNames.portfolios.value, uuid, symbol)
-            total_shares = sum([shares for _, shares, _ in shares_list])
+            shares_list = get_user_shares_by_symbol(DatabasesNames.portfolios.value, uuid, symbol, include_uid=True)
+            total_shares = sum([entry['shares'] for entry in shares_list])
 
             revenue = 0
 
-            # Sort transactions by lowest price when bought
-            shares_list.sort(key=lambda x: abs(x[2]))
+            # Sort transactions by lowest cost per share when bought
+            shares_list.sort(key=lambda x: abs(x['cost_per_share']))
 
             table_object_portfolios = get_table_object_from_selected_database_by_name(table_name=uuid, database_name=DatabasesNames.portfolios.value)
             table_object_transactions = get_table_object_from_selected_database_by_name(table_name=uuid, database_name=DatabasesNames.transactions.value)
 
             rows_uids_to_remove = []
-            for uid, shares, _ in shares_list:
+            for entry in shares_list:
+                uid = entry['uid']
+                shares = entry['shares']
                 if shares_to_sell <= 0:
                     logger.debug(f"Done selling all shares")
                     break

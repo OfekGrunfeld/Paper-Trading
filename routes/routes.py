@@ -85,7 +85,7 @@ def sign_in(username: str, password: str, db: Session = Depends(get_db_userbase)
         return_dict = ServerResponse()
 
         username, password = decrypt(username), decrypt(password)
-        logger.warning(f"Undecrypted: {username}, {password}")
+        
         # Create a user model (encoded)
         user_model = create_user_model(None, username, password)
 

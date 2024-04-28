@@ -371,28 +371,25 @@ def add_stock_data_to_selected_database_table(database_name: str, table_name: st
         return flag
 
 
-# I don't understand why this function is neccessary
-# Duplicate of get_owned_user_shares_by_symbol
-def get_user_shares_by_symbol(database_name: str, uuid: str, symbol: str) -> List[Tuple[str, float]]:
+def get_user_shares_by_symbol(database_name: str, uuid: str, symbol: str, include_uid=True) -> list:
     """
-    Retrieves all share quantities a user has for a given symbol, filtering only 'buy' transactions.
+    Retrieves all share quantities a user has for a given symbol, filtering only 'buy' transactions,
+    optionally includes the transaction UID or timestamp based on the flag.
 
     Args:
         database_name (str): The name of the database where the stock records are stored.
-        user_uuid (str): The UUID of the user whose shares are to be queried.
+        uuid (str): The UUID of the user whose shares are to be queried.
         symbol (str): The stock symbol to filter the shares by.
+        include_uid (bool): Flag to determine if the UID should be included. If False, includes timestamp.
 
     Returns:
-        List[Tuple[str, float]]: A list of tuples, where each tuple contains the uid of the transaction,
-                                 the number of shares and the cost per share.
+        list[dict]: A list of dictionaries with transaction details such as uid or timestamp, shares, and cost per share.
     """
-    # Retrieve database variables
     _, metadata, engine = get_database_variables_by_name(database_name)
     if metadata is None or engine is None:
         logger.warning(f"Database setup not found for {database_name}")
         return []
 
-    # Create a session
     session = Session(bind=engine)
 
     try:
@@ -401,73 +398,29 @@ def get_user_shares_by_symbol(database_name: str, uuid: str, symbol: str) -> Lis
             logger.warning(f"No table found for user {uuid} in database {database_name}")
             return []
 
-        # Prepare the query with filters
-        query = select(table.c.uid, table.c.shares, table.c.cost_per_share).where(
+        # Select columns based on include_uid flag
+        select_columns = [
+            table.c.uid if include_uid else table.c.timestamp,
+            table.c.shares,
+            table.c.cost_per_share
+        ]
+
+        query = select(*select_columns).where(
             (table.c.symbol == symbol.upper()) & (table.c.side == "buy")
         )
         results = session.execute(query).fetchall()
 
-        # Convert results to list of tuples (uid, shares)
-        shares_list = [(uid, np.double(shares), np.double(cost_per_share)) for uid, shares, cost_per_share in results]
+        # Convert results to a list of dictionaries
+        if include_uid:
+            shares_list = [{"uid": uid_or_timestamp, "shares": np.double(shares), "cost_per_share": np.double(cost_per_share)} for uid_or_timestamp, shares, cost_per_share in results]
+        else:
+            shares_list = [{"timestamp": uid_or_timestamp, "shares": np.double(shares), "cost_per_share": np.double(cost_per_share)} for uid_or_timestamp, shares, cost_per_share in results]
+
         return shares_list
 
     except Exception as error:
         logger.error(f"Failed to fetch shares for symbol {symbol} for user {uuid}: {error}")
         return []
-    finally:
-        session.close()
-
-# I don't understand why this function is neccessary
-# Duplicate of get_user_shares_by_symbol
-def get_owned_user_shares_by_symbol(database_name: str, uuid: str, symbol: str) -> list:
-    """
-    Retrieves all share quantities a user has for a given symbol, filtering only 'buy' transactions,
-    and includes the transaction timestamp.
-
-    Args:
-        database_name (str): The name of the database where the stock records are stored.
-        uuid (str): The UUID of the user whose shares are to be queried.
-        symbol (str): The stock symbol to filter the shares by.
-
-    Returns:
-        dict: A dictionary with transaction details including uid, shares, cost per share, and timestamp.
-    """
-    # Retrieve database variables
-    _, metadata, engine = get_database_variables_by_name(database_name)
-    if metadata is None or engine is None:
-        logger.warning(f"Database setup not found for {database_name}")
-        return {}
-
-    # Create a session
-    session = Session(bind=engine)
-
-    try:
-        table = metadata.tables.get(uuid)
-        if table is None:
-            logger.warning(f"No table found for user {uuid} in database {database_name}")
-            return {}
-
-        # Prepare the query with filters
-        query = select(
-            table.c.timestamp, 
-            table.c.shares, 
-            table.c.cost_per_share, 
-        ).where(
-            (table.c.symbol == symbol.upper()) & (table.c.side == "buy")
-        )
-        results = session.execute(query).fetchall()
-
-        # Convert results to a dictionary
-        shares_dict: list[dict[str, Union[datetime, np.double]]] = [
-            {"timestamp": timestamp, "shares": np.double(shares), "cost_per_share": np.double(cost_per_share), }
-            for timestamp, shares, cost_per_share in results
-        ]
-        
-        return shares_dict
-
-    except Exception as error:
-        logger.error(f"Failed to fetch shares for symbol {symbol} for user {uuid}: {error}")
-        return {}
     finally:
         session.close()
 
@@ -488,9 +441,9 @@ def get_all_symbols_count(database_name: str, uuid: str, symbols: List[str]) -> 
     symbol_counts = Counter({symbol: 0 for symbol in symbols})
 
     for symbol in symbols:
-        shares_list = get_owned_user_shares_by_symbol(database_name, uuid, symbol)
-        for _, shares in shares_list:
-            symbol_counts[symbol] += shares
+        shares_dicts = get_user_shares_by_symbol(database_name, uuid, symbol, include_uid=False)
+        for entry in shares_dicts:
+            symbol_counts[symbol] += entry['shares']
 
     return list(symbol_counts.items())
 
@@ -530,65 +483,6 @@ def get_unique_symbols_owned(database_name: str, uuid: str):
     finally:
         session.close()
 
-# Function that serves a greater purpose than it is actually used for 
-# And has bad logic overall - it is only used for one case
-def get_summary(database_name: str, table_name: str):
-    """
-    Retrieves a summary of all unique symbols the user has in both 'buy' and 'sell' sides,
-    along with the total share count for each symbol.
-
-    Args:
-        database_name (str): The name of the database where the stock records are stored.
-        uuid (str): The UUID of the user whose portfolio is to be queried.
-
-    Returns:
-        dict: A dictionary with keys 'buy' and 'sell', each containing a dictionary
-              of symbols and their corresponding total share count.
-    """
-    summary = {'buy': {}, 'sell': {}}
-
-    _, metadata, engine = get_database_variables_by_name(database_name)
-    if metadata is None or engine is None:
-        logger.error(f"Failed to retrieve database settings for {database_name}.")
-        return {}
-
-    session = sessionmaker(bind=engine)()
-
-    try:
-        table = metadata.tables.get(table_name)
-        if table is None:
-            logger.error(f"No table found for user {table_name} in database {database_name}.")
-            return summary
-
-        for side in summary.keys():
-            # Correctly constructing the select statement
-            query = select(
-                table.c.symbol, 
-                func.sum(table.c.shares).label("shares")
-            ).where(
-                table.c.side == side
-            ).group_by(
-                table.c.symbol
-            )
-            results = session.execute(query).fetchall()
-
-            # Populate the summary dictionary
-            for symbol, total_shares in results:
-                summary[side][symbol] = total_shares
-        
-        # Portfolios database currently only keeps the owned stocks a user has
-        if database_name == DatabasesNames.portfolios.value:
-            summary["owned"] = summary["buy"]
-            del summary["buy"]
-            del summary["sell"]
-        return summary
-    except Exception as error:
-        logger.error(f"Error occurred while querying the portfolio for {table_name}: {error}")
-        summary = None
-    finally:
-        session.close()
-        return summary
-
 def compile_user_portfolio(database_name: str, uuid: str) -> dict[str, list[dict[str, Union[datetime, np.double]]]]:
     """
     Compiles a portfolio summary for the user across all their stock symbols.
@@ -600,10 +494,70 @@ def compile_user_portfolio(database_name: str, uuid: str) -> dict[str, list[dict
     Returns:
         dict: A dictionary containing all transaction details by stock symbol.
     """
-    symbols = get_unique_symbols_owned(database_name, uuid)
+    symbols = get_unique_symbols_owned(database_name, uuid)  # Assume this function fetches all unique stock symbols the user owns
     portfolio_summary = {}
 
     for symbol in symbols:
-        portfolio_summary[symbol] = get_owned_user_shares_by_symbol(database_name, uuid, symbol)
+        transactions = get_user_shares_by_symbol(database_name, uuid, symbol, include_uid=False)
+        portfolio_summary[symbol] = transactions
 
     return portfolio_summary
+
+# Function that serves a greater purpose than it is actually used for 
+# And has bad logic overall - it is only used for one case
+# def get_summary(database_name: str, table_name: str):
+#     """
+#     Retrieves a summary of all unique symbols the user has in both 'buy' and 'sell' sides,
+#     along with the total share count for each symbol.
+
+#     Args:
+#         database_name (str): The name of the database where the stock records are stored.
+#         uuid (str): The UUID of the user whose portfolio is to be queried.
+
+#     Returns:
+#         dict: A dictionary with keys 'buy' and 'sell', each containing a dictionary
+#               of symbols and their corresponding total share count.
+#     """
+#     summary = {'buy': {}, 'sell': {}}
+
+#     _, metadata, engine = get_database_variables_by_name(database_name)
+#     if metadata is None or engine is None:
+#         logger.error(f"Failed to retrieve database settings for {database_name}.")
+#         return {}
+
+#     session = sessionmaker(bind=engine)()
+
+#     try:
+#         table = metadata.tables.get(table_name)
+#         if table is None:
+#             logger.error(f"No table found for user {table_name} in database {database_name}.")
+#             return summary
+
+#         for side in summary.keys():
+#             # Correctly constructing the select statement
+#             query = select(
+#                 table.c.symbol, 
+#                 func.sum(table.c.shares).label("shares")
+#             ).where(
+#                 table.c.side == side
+#             ).group_by(
+#                 table.c.symbol
+#             )
+#             results = session.execute(query).fetchall()
+
+#             # Populate the summary dictionary
+#             for symbol, total_shares in results:
+#                 summary[side][symbol] = total_shares
+        
+#         # Portfolios database currently only keeps the owned stocks a user has
+#         if database_name == DatabasesNames.portfolios.value:
+#             summary["owned"] = summary["buy"]
+#             del summary["buy"]
+#             del summary["sell"]
+#         return summary
+#     except Exception as error:
+#         logger.error(f"Error occurred while querying the portfolio for {table_name}: {error}")
+#         summary = None
+#     finally:
+#         session.close()
+#         return summary
