@@ -5,6 +5,7 @@ from utils.env_variables import HOST_IP, HOST_PORT
 from data.database import initialise_all_databases
 
 from routes import fastapi_router, admin_router
+from utils.middlewares import VerifyClientIPMiddleware
 
 def run_app(app: FastAPI) -> None:
     uvicorn.run(
@@ -14,6 +15,7 @@ def run_app(app: FastAPI) -> None:
         ssl_keyfile="./https/key.pem", 
         ssl_certfile="./https/cert.pem",
     )
+    app.add_middleware(VerifyClientIPMiddleware)
 
 if __name__ == "__main__":
     papertrading_app = FastAPI()

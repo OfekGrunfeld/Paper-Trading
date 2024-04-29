@@ -2,7 +2,6 @@ import numpy as np
 import traceback
 
 from fastapi import Depends, HTTPException, APIRouter, Query
-from sqlalchemy import update
 from sqlalchemy.orm import Session
 import yfinance as yf
 
@@ -119,7 +118,7 @@ def get_user_database_table(database_name: str, uuid: str):
         return_dict = ServerResponse()
         uuid = decrypt(uuid)
 
-        if database_name not in DatabasesNames:
+        if database_name not in [DatabasesNames.transactions.value, DatabasesNames.portfolios.value]:
             return_dict.error = "Invalid Database Name"
         else:
             logger.debug(f"Received get {database_name} request for user: {uuid}")
@@ -177,26 +176,40 @@ def update_user(attribute_to_update: str, uuid: str, password: str, new_attribut
         if password_matches(identifier=UserIdentifiers.uuid.value, identifier_value=uuid, password=password):
             try:
                 session: Session = next(get_db(DatabasesNames.userbase.value))
+                update = True
 
                 # Verify that attribute_to_update is a valid column name
                 if hasattr(Userbase, attribute_to_update):
                     if attribute_to_update == UserIdentifiers.email.value:
-                        update_values = {attribute_to_update: new_attribute_value.lower()}
+                        is_unique, reasons_for_ununiqueness = check_uniqueness_of_email_and_or_username(email=new_attribute_value)
+                        if not is_unique:
+                            update = False
+                        else:
+                            update_values = {attribute_to_update: new_attribute_value.lower()}
                     elif attribute_to_update == UserIdentifiers.password.value:
                         update_values = {attribute_to_update: encode_password(new_attribute_value)}
                     elif attribute_to_update == UserIdentifiers.username.value:
-                        update_values = {attribute_to_update: encode_username(new_attribute_value)}
-                    
-                    session.execute(
-                        update(Userbase).
-                        where(Userbase.uuid == uuid).
-                        values(**update_values)  # Correct use of dictionary unpacking
-                    )
-                    session.commit()
-                    session.close()
-                    
-                    return_dict.success = True
-                    logger.debug(f"Changing of {attribute_to_update} has been successful")
+                        is_unique, reasons_for_ununiqueness = check_uniqueness_of_email_and_or_username(username=new_attribute_value)
+                        if not is_unique:
+                            
+                            update = False
+                        else:
+                            update_values = {attribute_to_update: encode_username(new_attribute_value)}
+
+                    if update:
+                        session.execute(
+                            update(Userbase).
+                            where(Userbase.uuid == uuid).
+                            values(**update_values)  # Correct use of dictionary unpacking
+                        )
+                        session.commit()
+                        session.close()
+                        
+                        return_dict.success = True
+                        logger.debug(f"Changing of {attribute_to_update} has been successful")
+                    if not update:
+                        return_dict.error = f"Failed to update user. {str(" ".join(reasons_for_ununiqueness)).capitalize()} associated with existing user"
+                        logger.debug(f"Changing of {attribute_to_update} hasn't been as user's input is not unique")
                 
             except Exception as error:
                 logger.error(f"Error updating {attribute_to_update} in database. Error: {error}")
