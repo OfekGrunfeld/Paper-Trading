@@ -119,19 +119,29 @@ def get_user_database_table(database_name: str, uuid: str):
         return_dict = ServerResponse()
         uuid = decrypt(uuid)
 
-        logger.debug(f"Received user portfolio request for user: {uuid}")
-
-        # If received no columns - treat as special case where you choose all columns except the uid
-        results = query_specific_columns_from_database_table(database_name, uuid)
+        if database_name not in DatabasesNames:
+            return_dict.error = "Invalid Database Name"
+        else:
+            logger.debug(f"Received get {database_name} request for user: {uuid}")
         
-        return_dict.data = results
-        return_dict.success = True
+            # If received no columns - treat as special case where you choose all columns except the uid
+            results = query_specific_columns_from_database_table(database_name, uuid)
+            
+            
+            logger.warning(f"results: {results}")
+            if results is None:
+                return_dict.error = f"No records were found"
+            else:
+                return_dict.data = results
+                return_dict.success = True
+
+                logger.warning(f"Server response: {return_dict.to_dict()}")
     except Exception as error:
-        logger.error(f"Unexpected error occured in sign up: {error}")
+        logger.error(f"Unexpected error occured in get database: {error}")
         return_dict.reset()
         return_dict.error = "Internal Server Error"
     finally:
-        return return_dict
+        return return_dict.to_dict()
 
 @fastapi_router.get("/get_user/summary")
 def get_user_summary(uuid: str):

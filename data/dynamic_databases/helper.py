@@ -99,19 +99,22 @@ def query_all_tables_in_selected_database_for_stock_data(database_name: str, fil
     finally:
         session.close()
 
-def query_specific_columns_from_database_table(database_name: str, table_name: str, columns: list[str] = None) -> Union[StockRecord, Sequence[Row[Any]], None]:
+def query_specific_columns_from_database_table(database_name: str, table_name: str, columns: list[str] = None):
     _, metadata, engine = get_database_variables_by_name(database_name)
     if metadata is None or engine is None:
         logger.error(f"Table {table_name} does not exist in {database_name}.")
         return []
+    
+    # If received no columns - treat as special case where you choose all columns except the uid
+    select_all_columns_except_uid = columns is None
         
     table_object = metadata.tables.get(table_name)
     if table_object is None:
         logger.error(f"Could not retrieve {table_name} from {database_name}.")
         return None
 
-    # If received no columns - treat as special case where you choose all columns except the uid
-    if columns is None:
+    
+    if select_all_columns_except_uid:
         # Fetch column names directly from the table object
         columns = [column.name for column in inspect(table_object).columns]
         # Remove the 'uid' column if it exists
@@ -122,18 +125,16 @@ def query_specific_columns_from_database_table(database_name: str, table_name: s
     session = Session(bind=engine)
     try:
         # Build the query selecting only the specified columns
-        query = select(*[table_object.c[column] for column in columns])
-        logger.warning(f"{query}")
+        query = select(*[table_object.c[column] for column in columns])        
         result = session.execute(query).fetchall()
-        logger.warning(f"{result}")
     except Exception as error:
         logger.error(f"Exception occurred. Error: {error}")
         result = None
     finally:
         session.close()
 
-    if columns is None:
-        return [StockRecord.from_uidless_tuple(row) for row in result]
+    if select_all_columns_except_uid:
+        return [StockRecord.from_uidless_tuple(row).to_dict() for row in result]
     else:
         return result
 
