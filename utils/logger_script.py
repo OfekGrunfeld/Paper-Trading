@@ -39,7 +39,6 @@ class ColoredFormatter(logging.Formatter):
             }
         super(ColoredFormatter, self).__init__(*args, **kwargs)
 
-    # absolute junk
     def format(self, record):
         """Applies the color formats to the log level name"""
         # Save original levelname
@@ -73,9 +72,6 @@ def instantiate_logger() -> logging.Logger:
     :returns: logger - logging.Logger instance
     """
     try:
-        # disable warning from urlib as the certificate is not valid
-        urllib3.disable_warnings()
-        
         # Create logger
         logger = logging.getLogger(__name__)
         logger.setLevel(logging.DEBUG)

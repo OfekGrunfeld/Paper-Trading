@@ -13,6 +13,8 @@ def run_app(app: FastAPI) -> None:
         app,
         host=HOST_IP,
         port=int(HOST_PORT),
+        ssl_keyfile="./https/key.pem", 
+        ssl_certfile="./https/cert.pem",
     )
 
 if __name__ == "__main__":
