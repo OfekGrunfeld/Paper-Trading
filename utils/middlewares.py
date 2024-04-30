@@ -1,18 +1,42 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
+import ipaddress
+
+from os import getenv
+from dotenv import load_dotenv
+
+ALLOWED_NETWORK = getenv("ALLOWED_NETWORK")
 
 class VerifyClientIPMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        # Extract the client's IP address from the request
-        client_ip = request.client.host
-        print("Client IP:", client_ip)  # For debugging purposes
-        
-        # Check if the client IP is the one allowed
-        if client_ip != "127.0.0.1":
-            # Raise an exception or return a custom response if the IP is not allowed
-            raise HTTPException(status_code=403, detail="Access denied")
+    # Allowed networks
+    allowed_networks = [ipaddress.ip_network(str(ALLOWED_NETWORK))] 
 
-        # If IP is allowed, just proceed to handle the request
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        client_ip_str = self.get_client_ip(request)
+
+        try:
+            client_ip = ipaddress.ip_address(client_ip_str)
+        except ValueError:
+            return Response("Invalid IP address", status_code=403)
+
+        if not any(client_ip in network for network in self.allowed_networks):
+            return Response(f"Access denied\nCannot Access from {client_ip_str}", status_code=403)
+
         response = await call_next(request)
         return response
+
+    def get_client_ip(self, request: Request) -> str:
+        # Get the IP address from the X-Forwarded-For header
+        x_forwarded_for = request.headers.get("X-Forwarded-For")
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(",")[0].strip()
+        else:
+            # Get the IP address from the X-Real-IP header
+            x_real_ip = request.headers.get("X-Real-IP")
+            if x_real_ip:
+                ip = x_real_ip.strip()
+            else:
+                ip = request.client.host
+
+        return ip
